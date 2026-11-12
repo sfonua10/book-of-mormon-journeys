@@ -24,6 +24,8 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
   let interactable = null;
   let frozen = 0;
   let ended = false;
+  /** A card is asking for one of its answers: a tap that is not on an answer takes none. */
+  let asking = false;
 
   const confirmKeys = new Set(['KeyE', 'Enter', 'Space', 'NumpadEnter']);
   addEventListener('keydown', (e) => {
@@ -124,11 +126,12 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
      */
     async choice(text, answers, { auto: autoPick = 0, who = '' } = {}) {
       frozen++;
+      asking = true;
       pressed = false;
       key = null;
       let at = 0;
       let picked = -1;
-      const show = () => ui.card.show({ text, who, kind: 'thought', answers, at, hint: 'W and S to choose · E to answer', onPick: (i) => (picked = i) });
+      const show = () => ui.card.show({ text, who, kind: 'thought', answers, at, hint: ui.touch ? 'Tap an answer' : 'W and S to choose · E to answer', onPick: (i) => (picked = i) });
       show();
       const shown = time;
       await until(() => {
@@ -148,6 +151,7 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
         return pressed;
       });
       pressed = false;
+      asking = false;
       ui.card.hide();
       frozen--;
       await c.wait(0.25);
@@ -227,6 +231,14 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
       keep?.keep(null);
     },
     play,
+    /** As E: from the touch controls' act button. */
+    press() {
+      pressed = true;
+    },
+    /** A tap on the screen: goes on from a card and acts, as a click does, but answers nothing. */
+    tap() {
+      if (!asking) pressed = true;
+    },
     update(dt) {
       time += dt;
       // (a wait that is met may start another, which is checked next frame)

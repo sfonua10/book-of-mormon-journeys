@@ -29,6 +29,7 @@ import { cloneMan, createCast } from '../game/npc.js';
 import { reference, verses } from '../game/scripture.js';
 import { GAME, keeper, STORIES, storyById } from '../game/stories.js';
 import { createUI } from '../game/ui.js';
+import { createTouch, wantsTouch } from '../game/touch.js';
 import { loadMan } from '../figure/man.js';
 import { fromValley, heightAt, HERO, paint, START, tarnDistance } from './world.js';
 import { CITY, IN_CITY } from '../game/places.js';
@@ -91,7 +92,9 @@ const offThread = (message, here) =>
     }
   });
 // (medium unless asked: high is for a strong graphics card; Patch's own setting is honoured where it is given)
-const quality = params.get('quality') ?? window.patch?.quality ?? 'medium';
+// a phone or a tablet: played by touch (game/touch.js), and painted more lightly unless the address says otherwise
+const touch = wantsTouch(params);
+const quality = params.get('quality') ?? window.patch?.quality ?? (touch ? 'low' : 'medium');
 const EXTENT = 1280;
 const GROUND = { extent: EXTENT, extentRes: EXTENT, centre: [0, 0] };
 const FLOOR_SIZE = quality === 'low' ? 1024 : 1536;
@@ -659,6 +662,7 @@ function setWind(speed) {
 
 canvas.addEventListener('click', () => {
   sounds.start();
+  if (touch) return;
   if (document.pointerLockElement !== canvas) canvas.requestPointerLock()?.catch?.(() => {});
 });
 document.addEventListener('pointerlockchange', () => {
@@ -782,7 +786,8 @@ await stage(0.9, 'Warming up');
 mark('warm');
 
 // ---- the story -----------------------------------------------------------------------------------------------
-const ui = createUI();
+const ui = createUI({ touch });
+if (touch) createTouch({ canvas, input, ui, press: () => director?.press(), tap: () => director?.tap(), wake: () => sounds.start(), mouse: params.has('touch') });
 /** What the story can reach of the game. Places are given in (u, v) with P, or in metres from the city's middle with C. */
 const g = {
   canvas,
@@ -976,7 +981,7 @@ function openJourney(id, go) {
       if (pick.id !== journey.id) openJourney(pick.id, pick.go);
       document.body.classList.remove('menu');
       ui.fade(1, 0.6);
-      canvas.requestPointerLock?.()?.catch?.(() => {});
+      if (!touch) canvas.requestPointerLock?.()?.catch?.(() => {});
     }
     if (pick.id === journey.id) {
       sounds.start();

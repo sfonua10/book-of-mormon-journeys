@@ -42,6 +42,8 @@ npm run serve      # serves dist/ on 5383
 
 Controls: W A S D to walk, Shift to run, the mouse to look (click to capture it), E or Enter to act and to go on from a card, Esc to pause. When a card asks a question, W and S choose an answer and E takes it (or press 1 or 2). A gamepad works too, for walking.
 
+On a phone or a tablet it is played by touch (`src/game/touch.js`): a thumb on the left of the screen is a stick to walk by, a finger dragged on the right looks round, a tap goes on from a card or acts, an answer is tapped to take it, and the button at the lower right runs. It is painted at low quality there unless the address says otherwise. `?touch` tries the same controls with a mouse.
+
 Useful URL options:
 - `?quality=low|medium|high` (medium by default)
 - `?beat=a2` starts at a beat. The beats are `a1`, `a1-gate`, `a2`, `a2-laban`, `a2-rock`, `a3`, `a3-laban`, `a3-treasury`, `a3-walls` and `home`.
@@ -55,6 +57,7 @@ CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" node tools
 node tools/story.mjs --query "hold&wrong"                                            # the same, overtaken once and answering wrongly once
 node tools/story.mjs --beat a3 --snap "4:6,4:9" --quality medium --out shots/story   # stills when those cards are up
 node tools/look.mjs city:120,0,0,4,50 --out shots/work                               # a still from any place (u, v, turn, pitch, fov)
+node tools/touch.mjs                                                                 # the touch controls, on a phone-sized touch page
 node tools/fps.mjs --query "quality=medium&beat=a2-laban"                            # frame rate
 ```
 
@@ -70,6 +73,7 @@ On an Apple M4 at 1080p the game runs at about 56–68 fps at medium with the ca
 - `src/game/guidance.js`: the leading light for the night act.
 - `src/game/town.js`: the people in the streets by day.
 - `src/game/music.js`: the story's music, made in code and played through the valley's sounds.
+- `src/game/touch.js`: the touch controls, for phones and tablets.
 - `src/game/ui.js`: the cards, the "What to do" panel (a line, and a checklist when the thing has parts), prompt, marker, fades, and the title and end screens.
 - `src/valley/`, `src/lib/`, `src/figure/`: Painted valley's painting, recoloured for dry hills and given a night (`sky.js`).
 

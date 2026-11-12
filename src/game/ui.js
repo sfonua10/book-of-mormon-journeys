@@ -149,7 +149,7 @@ const el = (tag, id, cls = '') => {
   return e;
 };
 
-export function createUI() {
+export function createUI({ touch = false } = {}) {
   const style = document.createElement('style');
   style.textContent = CSS;
   document.head.append(style);
@@ -171,12 +171,15 @@ export function createUI() {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
   return {
+    touch,
+    /** What the touch controls listen to: a tap on a card goes on from it, a tap on the prompt acts. */
+    tapTargets: { card: [card], act: [prompt] },
     card: {
       /**
        * Shows a card: scripture with its reference, or a thought (italic, no reference). With `answers` it asks: they
        * are listed under it, the one at `at` lit, and `onPick(i)` is told if one is clicked.
        */
-      show({ text, ref = '', who = '', kind = ref ? 'scripture' : 'thought', hint = 'E or click to continue', answers = null, at = 0, onPick = null }) {
+      show({ text, ref = '', who = '', kind = ref ? 'scripture' : 'thought', hint = touch ? 'Tap to continue' : 'E or click to continue', answers = null, at = 0, onPick = null }) {
         card.className = `g-layer on ${kind}`;
         const list = answers ? `<div class="answers">${answers.map((a, i) => `<div class="answer${i === at ? ' at' : ''}" data-i="${i}"><b>${i + 1}</b>${esc(a)}</div>`).join('')}</div>` : '';
         card.innerHTML = `${who ? `<div class="who">${esc(who)}</div>` : ''}<div class="text">${esc(text)}</div>${list}${ref ? `<div class="ref">${esc(ref)}</div>` : ''}<div class="hint">${esc(hint)}</div>`;
@@ -205,7 +208,7 @@ export function createUI() {
       objective.classList.toggle('on', !!text);
     },
     prompt(label) {
-      if (label) prompt.innerHTML = `<kbd>E</kbd>${esc(label)}`;
+      if (label) prompt.innerHTML = `<kbd>${touch ? 'Tap' : 'E'}</kbd>${esc(label)}`;
       prompt.classList.toggle('on', !!label);
     },
     /** The way-marker: where on the screen, and how far in metres; null to hide it. */

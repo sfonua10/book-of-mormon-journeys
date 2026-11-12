@@ -13,6 +13,7 @@ export class Input {
     this.sensitivity = 0.0022;
     this.override = null; // scripted input for captures
     this.lockable = true;
+    this.touch = null; // { move, look, sprint } from the touch controls (game/touch.js), where there are any
     const typing = () => document.activeElement?.tagName === 'INPUT';
     const down = (e) => {
       if (typing()) return;
@@ -57,6 +58,15 @@ export class Input {
     };
     this.mouse.x = this.mouse.y = this.mouse.wheel = 0;
     this.pressed.clear();
+
+    // touch: a thumb stick moves (its tilt sets the speed, as a gamepad's does), a drag looks, a button runs
+    const t = this.touch;
+    if (t) {
+      if (Math.hypot(t.move.x, t.move.y) > 0.01) { s.move = { x: t.move.x, y: t.move.y }; s.device = 'pad'; s.walk = false; }
+      s.look.x += t.look.x; s.look.y += t.look.y;
+      t.look.x = t.look.y = 0;
+      if (t.sprint) s.sprint = true;
+    }
 
     // gamepad: left stick moves (its tilt sets the speed), right stick looks, L3 sprints,
     // A jumps, LT strafes, d-pad up/down zooms
