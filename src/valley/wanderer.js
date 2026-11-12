@@ -24,7 +24,60 @@ in float vFold;
 in vec2 vCloth;
 uniform vec3 uTrim;
 uniform float uGlow;   // 0, or towards 1 for one who shines (the angel)
+// What he wears over the figure's own shirt and trousers, painted on by where each point was in the pose he was made
+// in (arms out to the sides, facing +z, his left towards +x).
+uniform float uPart;   // 0 a part as it is; 1 the shirt and trousers, 2 his bare skin, 3 his shoes
+uniform vec4 uCut;     // bare (0; 1 one shoulder and both arms; 2 to the waist), the hem's height (0: a long robe), how high the sandals' laces go (0: none), the belt (0; 1 wide and banded; 2 narrow)
+uniform float uCuffs;  // 0; 1 leather guards on the forearms; 2 gold at the wrist and the upper arm; 3 a band at the wrist
+uniform float uEdge;   // a hanging cloth's hem: 0 a band of trim; 1 raw and uneven; 2 a border of scales; 3 fur
+uniform vec2 uRobe;    // long sleeves to the wrist (0 or 1), an open V at the neck (0 or 1)
+uniform vec3 uPal[12]; // [in the light, in the shade] of: skin, the belt, the belt's bands, leather, gold, the robe
 layout(location = 0) out vec4 outC;
+// (each of those paints its own line number, so where it meets another there is an inked edge, as a garment has)
+const float PAL_INK[6] = float[6](0.21, 0.12, 0.12, 0.12, 0.06, 0.18);
+
+// laces crossing and crossing again up the shin
+float laced(vec3 p) {
+  vec2 c = vec2(sign(p.x) * 0.1, -0.035);
+  float a = atan(p.z - c.y, p.x - c.x) / 6.2832;
+  float s1 = fract(p.y * 8.0 + a * 2.0);
+  float s2 = fract(p.y * 8.0 - a * 2.0);
+  return step(min(min(s1, 1.0 - s1), min(s2, 1.0 - s2)), 0.07);
+}
+// which of uPal's paints is here, or -1 for the part's own
+int worn(vec3 p) {
+  float ax = abs(p.x);
+  if (uPart > 0.5 && uPart < 1.5) {
+    int r = -1;
+    if (uCut.x > 1.5 && p.y > 1.0) r = 0;
+    else if (uCut.x > 0.5) {
+      // both arms bare, and the right shoulder: the tunic's top runs from under the right arm up over the left shoulder
+      if (ax > 0.235 && p.y > 1.33) r = 0;
+      else if (p.y > 1.34 + clamp((p.x + 0.17) / 0.3, 0.0, 1.0) * 0.34) r = 0;
+    }
+    if (uRobe.y > 0.5 && p.z > 0.02 && p.y > 1.33 + ax * 1.6) r = 0;
+    if (uCut.y > 0.0 && p.y < uCut.y) r = p.y < uCut.z && laced(p) > 0.5 ? 3 : 0;
+    if (uCut.w > 1.5 && p.y > 0.975 && p.y < 1.035) r = 1;
+    if (uCut.w > 0.5 && uCut.w < 1.5 && p.y > 0.955 && p.y < 1.165) r = abs(p.y - 1.02) < 0.011 || abs(p.y - 1.1) < 0.011 ? 2 : 1;
+    return r;
+  }
+  if (uPart > 1.5 && uPart < 2.5) {
+    if (p.y > 1.3 && p.y < 1.65 && ax > 0.3) {
+      if (uRobe.x > 0.5 && ax < 0.75) return 5;
+      if (uCuffs > 0.5 && uCuffs < 1.5 && ax > 0.56 && ax < 0.765) return 3;
+      if (uCuffs > 1.5 && uCuffs < 2.5 && ((ax > 0.37 && ax < 0.41) || (ax > 0.715 && ax < 0.765))) return 4;
+      if (uCuffs > 2.5 && ax > 0.715 && ax < 0.765) return 3;
+    }
+    if (p.y < uCut.z && laced(p) > 0.5) return 3;
+    return -1;
+  }
+  if (uPart > 2.5 && uCut.z > 0.0) {
+    // sandals: a sole, and straps over the bare foot
+    if (p.y < 0.03) return -1;
+    return laced(p) > 0.5 || abs(p.y - 0.135) < 0.016 || (p.z > 0.06 && abs(p.z - 0.1) < 0.014) ? 3 : 0;
+  }
+  return -1;
+}
 void main() {
   vec3 N = normalize(vN);
   // (which side is seen is asked of the normal, not of the triangle: the hat and the cloth are wound as they come)
@@ -49,10 +102,35 @@ void main() {
   }
   vec3 litPaint = lower ? uLit2 : uLit;
   vec3 shadePaint = lower ? uShade2 : uShade;
-  // a band of another colour along the hem
-  if (uInside > 0.5 && !back && vCloth.y > 0.935) {
-    litPaint = uTrim;
-    shadePaint = uTrim * vec3(0.66, 0.6, 0.7);
+  float ink = lower ? uInk.y : uInk.x;
+  int r = worn(vBind);
+  if (r >= 0) {
+    litPaint = uPal[r * 2];
+    shadePaint = uPal[r * 2 + 1];
+    ink = PAL_INK[r];
+  }
+  if (uInside > 0.5) {
+    if (uEdge < 0.5) {
+      // a band of another colour along the hem
+      if (!back && vCloth.y > 0.935) {
+        litPaint = uTrim;
+        shadePaint = uTrim * vec3(0.66, 0.6, 0.7);
+      }
+    } else if (uEdge < 1.5 || uEdge > 2.5) {
+      // a raw edge, or fur: torn unevenly, the fur more deeply
+      float fur = step(2.5, uEdge);
+      float x = vCloth.x * mix(38.0, 96.0, fur);
+      float tear = mix(0.07, 0.17, fur) * (0.55 + 0.45 * sin(x * 1.7) * sin(x * 0.63 + 1.3));
+      if (vCloth.y > 1.0 - tear) discard;
+    } else if (vCloth.y > 0.82) {
+      // a border of small scales, row on row
+      vec2 q = vec2(vCloth.x * 70.0, (vCloth.y - 0.82) / 0.18 * 3.0);
+      q.x += 0.5 * floor(q.y);
+      float d = length(fract(q) - vec2(0.5, 0.05));
+      float rim = smoothstep(0.4, 0.46, d) * (1.0 - smoothstep(0.56, 0.62, d));
+      litPaint = mix(uTrim, uTrim * vec3(0.45, 0.4, 0.35), rim);
+      shadePaint = litPaint * vec3(0.62, 0.56, 0.66);
+    }
   }
   vec3 sun = uSunColor * 0.42 + uSkyColor * 0.3;
   // (the shade's light is nearly without colour: a shade colour is mixed as it should look, as cel paint is)
@@ -61,8 +139,10 @@ void main() {
   // three tones in all: in the light, in the shade, and the deep of a fold
   vec3 col = mix(shadePaint * sky, litPaint * sun, lit * (1.0 - deep));
   col = mix(col, shadePaint * sky * vec3(0.64, 0.64, 0.8), deep * (1.0 - lit));
-  col = mix(col, vec3(1.9, 1.85, 1.7) * (0.85 + 0.15 * lit), uGlow);
-  outC = vec4(applyFog(col, vWorld), lower ? uInk.y : uInk.x);
+  // (the light is in his robe; his face and hands keep their own colour, a little lit)
+  bool skin = r == 0 || (r < 0 && uPart > 1.5 && uPart < 2.5);
+  col = mix(col, vec3(1.9, 1.85, 1.7) * (0.85 + 0.15 * lit), uGlow * (skin ? 0.3 : 1.0));
+  outC = vec4(applyFog(col, vWorld), ink);
 }
 `;
 
@@ -108,26 +188,92 @@ void main() {
 }
 `;
 
+// How he is dressed, beyond the colours:
+//   head: 'cloth' (a head cloth falling to the neck), 'band' (a thin band round the brow) or 'none'
+//   cloak: a mantle of cloth over the shoulders and back
+//   hem: where his tunic or robe ends (its skirt hangs from the belt; below it his legs are bare); 0: the figure's
+//     own shirt and trousers, painted
+//   edge: the tunic's hem: 0 plain, 1 raw and uneven, 2 a border of scales, 3 fur
+//   bare: 0; 1 one shoulder and both arms bare; 2 bare to the waist
+//   belt: 0; 1 a wide belt with bands across it; 2 a narrow one
+//   cuffs: 0; 1 leather guards on the forearms; 2 gold bands at the wrist and the upper arm; 3 a band at the wrist
+//   lace: how high sandals' laces go up the shin (0: shoes as they are)
+//   sleeves: long wide sleeves, to the wrist and open there
+//   neck: 'v' for an open V at the neck
+//   blade: a blade in its sheath at the belt, this long (0: none; about 0.2 a dagger, 0.75 a sword)
+/** A long robe and a mantle, a head cloth: Laban, his servants, Zoram, the angel. */
+export const ROBE = { head: 'cloth', cloak: true, hem: 0.13, edge: 0, bare: 0, belt: 0, cuffs: 0, lace: 0, blade: 0, sleeves: false, neck: '' };
+
 // What he wears: [in the light, in the shade], as paint. The shade is a colour of its own, cooler and deeper, not
 // the light one made darker.
-// (Nephi's, by default: a blue mantle over a long cream tunic, a head cloth, sandals. The model's shirt and trousers
-// are painted one colour, so they read as one long garment.)
+// (Nephi's, by default: a rough tan tunic of hide over one shoulder, his arms and the other shoulder bare; a wide
+// dark belt with lighter bands across it; a red band round his brow; leather guards on his forearms; sandals laced up
+// the shin.)
 export const CLOTHES = {
   CLOAK: [[0.16, 0.3, 0.56], [0.08, 0.13, 0.38]],
   HAT: [[0.92, 0.88, 0.78], [0.56, 0.54, 0.62]],
-  SHIRT: [[0.9, 0.84, 0.7], [0.52, 0.5, 0.6]],
-  TROUSERS: [[0.86, 0.8, 0.66], [0.5, 0.47, 0.56]],
+  SHIRT: [[0.78, 0.6, 0.36], [0.5, 0.34, 0.24]],
+  TROUSERS: [[0.76, 0.58, 0.35], [0.49, 0.33, 0.24]],
+  SKIRT: [[0.78, 0.6, 0.36], [0.5, 0.34, 0.24]],
   TRIM: [[0.95, 0.78, 0.4], [0.62, 0.5, 0.42]],
-  SKIN: [[0.95, 0.68, 0.5], [0.62, 0.36, 0.3]],
-  BOOTS: [[0.3, 0.19, 0.12], [0.15, 0.09, 0.08]],
-  HAIR: [[0.24, 0.15, 0.09], [0.11, 0.07, 0.07]],
-  BEARD: [[0.2, 0.13, 0.08], [0.1, 0.07, 0.06]],
+  SKIN: [[0.9, 0.6, 0.42], [0.57, 0.32, 0.27]],
+  BOOTS: [[0.36, 0.22, 0.12], [0.18, 0.11, 0.09]],
+  HAIR: [[0.14, 0.09, 0.06], [0.07, 0.05, 0.05]],
+  BEARD: [[0.14, 0.09, 0.06], [0.07, 0.05, 0.05]],
   EYES: [[0.08, 0.06, 0.06], [0.06, 0.05, 0.06]],
+  HEADBAND: [[0.74, 0.14, 0.1], [0.4, 0.07, 0.09]],
+  BELT: [[0.32, 0.19, 0.11], [0.16, 0.1, 0.09]],
+  BELT2: [[0.6, 0.42, 0.25], [0.33, 0.22, 0.18]],
+  LEATHER: [[0.46, 0.29, 0.16], [0.24, 0.14, 0.11]],
+  GOLD: [[1.0, 0.78, 0.3], [0.62, 0.42, 0.18]],
+  OUTFIT: { head: 'band', cloak: false, hem: 0.6, edge: 1, bare: 1, belt: 1, cuffs: 1, lace: 0.42, blade: 0 },
 };
+// the paints the outfit lays over his skin and clothes, in uPal's order
+const OVER = ['SKIN', 'BELT', 'BELT2', 'LEATHER', 'GOLD', 'SHIRT'];
 
 // The alpha each part writes: its number for the line. Two parts with different numbers get a line between them;
 // all of them are below anything else in the valley, so the line is only ever round him.
-const INK = { CLOAK: 0.03, HAT: 0.06, HAIR: 0.09, BOOTS: 0.12, TROUSERS: 0.15, SHIRT: 0.18, SKIN: 0.21, EYES: 0.09, BEARD: 0.09 };
+// (A tunic's skirt has the trousers' number, so a thigh swinging through it in a stride draws no line.)
+const INK = {
+  CLOAK: 0.03, HAT: 0.06, HAIR: 0.09, BOOTS: 0.12, TROUSERS: 0.15, SHIRT: 0.18, SKIN: 0.21, EYES: 0.09, BEARD: 0.09,
+  SKIRT: 0.15, HEADBAND: 0.03, BELT: 0.12, BELT2: 0.06, LEATHER: 0.12, GOLD: 0.06,
+};
+
+/** The skirt of a tunic or a robe, from under the belt to `hem`: an open cone a little wider than the hips. */
+function skirtShape(hem) {
+  const cols = 33;
+  const rows = 7;
+  const top = 0.965;
+  const position = new Float32Array(cols * rows * 3);
+  const uv = new Float32Array(cols * rows * 2);
+  for (let j = 0; j < rows; j++) {
+    const t = j / (rows - 1);
+    const y = top + (hem - top) * t;
+    // (the longer it is, the wider it falls: a robe to the ankles flares more than a tunic to the knee)
+    const rx = 0.2 + 0.17 * (top - hem) * t;
+    const rz = 0.157 + 0.15 * (top - hem) * t;
+    const cz = 0.028 - 0.016 * t;
+    for (let i = 0; i < cols; i++) {
+      const a = (i / (cols - 1)) * Math.PI * 2;
+      position.set([Math.sin(a) * rx, y, cz + Math.cos(a) * rz], (i + j * cols) * 3);
+      uv.set([i / (cols - 1), t], (i + j * cols) * 2);
+    }
+  }
+  const index = [];
+  for (let j = 0; j + 1 < rows; j++) {
+    for (let i = 0; i + 1 < cols; i++) {
+      const k = i + j * cols;
+      index.push(k, k + cols, k + 1, k + 1, k + cols, k + cols + 1);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geometry.setAttribute('aFold', new THREE.BufferAttribute(new Float32Array(cols * rows), 1));
+  geometry.setIndex(index);
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 /**
  * @param field the valley's meadow: its uniforms are the light he stands in
@@ -137,8 +283,13 @@ const INK = { CLOAK: 0.03, HAT: 0.06, HAIR: 0.09, BOOTS: 0.12, TROUSERS: 0.15, S
 export async function createWanderer(field, onProgress, clothes = {}, { man: given = null, beard = false } = {}) {
   let palette = { ...CLOTHES, ...clothes };
   const glow = { value: 0 };
+  // what the outfit is, shared by all his parts
+  const cut = { value: new THREE.Vector4() };
+  const cuffs = { value: 0 };
+  const robe = { value: new THREE.Vector2() };
+  const over = { value: Array.from({ length: OVER.length * 2 }, () => new THREE.Color()) };
   const painted = [];
-  const paint = (upper, { skinned = false, lower = upper, split = -10, inside = 0 } = {}) => {
+  const paint = (upper, { skinned = false, lower = upper, split = -10, inside = 0, part = 0, edge = 0 } = {}) => {
     const material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
       side: THREE.DoubleSide,
@@ -153,6 +304,12 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
         uInside: { value: inside },
         uTrim: { value: new THREE.Color(...palette.TRIM[0]) },
         uGlow: glow,
+        uPart: { value: part },
+        uCut: cut,
+        uCuffs: cuffs,
+        uEdge: { value: edge },
+        uPal: over,
+        uRobe: robe,
       },
       vertexShader: skinned ? skinnedVertex : plainVertex,
       fragmentShader: fragment,
@@ -169,24 +326,45 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
       continue;
     }
     mesh.material = /casualsuit/.test(name)
-      ? paint('SHIRT', { skinned: true, lower: 'TROUSERS', split: 0.98 })
+      ? paint('SHIRT', { skinned: true, lower: 'TROUSERS', split: 0.98, part: 1 })
       : /shoes/.test(name)
-        ? paint('BOOTS', { skinned: true })
+        ? paint('BOOTS', { skinned: true, part: 3 })
         : /short01/.test(name)
           ? paint('HAIR', { skinned: true })
           : /high-poly/.test(name)
             ? paint('EYES', { skinned: true })
-            : paint('SKIN', { skinned: true });
+            : paint('SKIN', { skinned: true, part: 2 });
     mesh.frustumCulled = false;
   }
 
-  // the hat: a low crown and a wide brim, set on while he still stands in the pose he was made in
+  // What he wears on his head, set on while he still stands in the pose he was made in. (`hat` is where his head
+  // is; the cloak keeps under it.)
   man.object.updateMatrixWorld(true);
-  // (a head cloth, in place of the valley's straw hat: close over the crown, falling to the neck behind)
+  const hat = new THREE.Group();
+  // a head cloth: close over the crown, falling to the neck behind
   const profile = [[0, 0.135], [0.05, 0.13], [0.092, 0.105], [0.112, 0.06], [0.118, 0.01], [0.12, -0.04]].map(([r, y]) => new THREE.Vector2(r, y));
-  const hat = new THREE.Mesh(new THREE.LatheGeometry(profile, 24), paint('HAT'));
+  const cloth = new THREE.Mesh(new THREE.LatheGeometry(profile, 24), paint('HAT'));
   const fall = [[0.122, -0.01], [0.128, -0.07], [0.135, -0.14], [0.15, -0.2]].map(([r, y]) => new THREE.Vector2(r, y));
-  hat.add(new THREE.Mesh(new THREE.LatheGeometry(fall, 14, Math.PI * 0.42, Math.PI * 1.16), hat.material));
+  cloth.add(new THREE.Mesh(new THREE.LatheGeometry(fall, 14, Math.PI * 0.42, Math.PI * 1.16), cloth.material));
+  hat.add(cloth);
+  // a band round the brow, tied behind, its ends hanging
+  const band = new THREE.Group();
+  const bandPaint = paint('HEADBAND');
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.024, 28, 1, true), bandPaint);
+  ring.scale.set(0.088, 1, 0.117);
+  band.add(ring);
+  const knot = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), bandPaint);
+  knot.position.set(0, 0, -0.118);
+  band.add(knot);
+  for (const side of [-1, 1]) {
+    const end = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.085, 0.006), bandPaint);
+    end.position.set(side * 0.014, -0.04, -0.125);
+    end.rotation.set(0.18, 0, side * 0.2);
+    band.add(end);
+  }
+  band.position.set(0, -0.03, 0.01);
+  band.rotation.x = 0.06;
+  hat.add(band);
   if (beard) {
     // a full beard: a rounded mass under the jaw, the hair's colour
     const b = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), paint('BEARD'));
@@ -199,6 +377,40 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
   man.object.add(hat);
   hat.updateMatrixWorld(true);
   man.bones.Head.attach(hat);
+
+  // What hangs from his hips: the skirt of a short tunic, and a dagger at the belt.
+  const hips = new THREE.Group();
+  const skirt = new THREE.Mesh(skirtShape(0.6), paint('SKIRT', { inside: 1 }));
+  skirt.frustumCulled = false;
+  let skirtHem = 0.6;
+  hips.add(skirt);
+  const dagger = new THREE.Group();
+  // (a sheath a unit long, stretched to the blade's length)
+  const sheath = new THREE.Mesh(new THREE.BoxGeometry(0.034, 1, 0.022).translate(0, -0.5, 0), paint('LEATHER'));
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.075, 8), paint('BELT'));
+  grip.position.y = 0.04;
+  const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.017, 8, 6), paint('GOLD'));
+  pommel.position.y = 0.085;
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.02), pommel.material);
+  dagger.add(sheath, grip, pommel, guard);
+  hips.add(dagger);
+  man.object.add(hips);
+  hips.updateMatrixWorld(true);
+  man.bones.pelvis.attach(hips);
+
+  // wide sleeves, opening from the elbow to the wrist (made along the arm as it was made, held out level)
+  const sleevePaint = paint('SHIRT', { inside: 1 });
+  const sleeves = [];
+  for (const side of [1, -1]) {
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.058, 0.3, 18, 3, true), sleevePaint);
+    sleeve.rotation.z = -side * Math.PI / 2;
+    sleeve.position.set(side * 0.57, 1.49, -0.07);
+    sleeve.frustumCulled = false;
+    man.object.add(sleeve);
+    sleeve.updateMatrixWorld(true);
+    man.bones[side > 0 ? 'lowerarm_l' : 'lowerarm_r'].attach(sleeve);
+    sleeves.push(sleeve);
+  }
 
   // the cloak: cloth, moved by his walking and the valley's wind
   const cloak = new Cloak(man.bones);
@@ -227,6 +439,49 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
 
   const group = new THREE.Group();
   group.add(man.object, cloakMesh);
+
+  /** Sets every paint from the palette, and what he wears from its OUTFIT. */
+  function wear() {
+    for (const { material, upper, lower } of painted) {
+      const u = material.uniforms;
+      u.uLit.value.setRGB(...palette[upper][0]);
+      u.uShade.value.setRGB(...palette[upper][1]);
+      u.uLit2.value.setRGB(...palette[lower][0]);
+      u.uShade2.value.setRGB(...palette[lower][1]);
+      u.uTrim.value.setRGB(...palette.TRIM[0]);
+    }
+    OVER.forEach((key, i) => {
+      over.value[i * 2].setRGB(...palette[key][0]);
+      over.value[i * 2 + 1].setRGB(...palette[key][1]);
+    });
+    const o = { ...ROBE, ...palette.OUTFIT };
+    cut.value.set(o.bare, o.hem, o.lace, o.belt);
+    cuffs.value = o.cuffs;
+    robe.value.set(o.sleeves ? 1 : 0, o.neck === 'v' ? 1 : 0);
+    for (const sleeve of sleeves) sleeve.visible = !!o.sleeves;
+    cloth.visible = o.head === 'cloth';
+    band.visible = o.head === 'band';
+    cloakMesh.visible = o.cloak;
+    skirt.visible = o.hem > 0;
+    skirt.material.uniforms.uEdge.value = o.edge;
+    if (o.hem > 0 && o.hem !== skirtHem) {
+      skirt.geometry.dispose();
+      skirt.geometry = skirtShape(o.hem);
+      skirtHem = o.hem;
+    }
+    dagger.visible = o.blade > 0;
+    if (o.blade > 0) {
+      sheath.scale.y = o.blade;
+      // a dagger rides at the front of the hip; a sword hangs at the side, along the leg
+      const sword = o.blade > 0.4;
+      dagger.position.set(sword ? 0.215 : 0.17, 0.985, sword ? 0.02 : 0.125);
+      dagger.rotation.set(sword ? 0.42 : 0.12, sword ? -1.5 : -0.5, sword ? 0.14 : 0.35);
+    }
+    outfit = o;
+  }
+  let outfit = null;
+  wear();
+
   return {
     man,
     hat,
@@ -235,17 +490,14 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
     group,
     /** How much he shines: 0 for a man, towards 1 for an angel. */
     glow,
-    /** Puts other clothes on him (any of CLOTHES' parts). */
+    /** What he wears now (ROBE's fields). */
+    get outfit() {
+      return outfit;
+    },
+    /** Puts other clothes on him (any of CLOTHES' parts, OUTFIT among them). */
     dress(clothes) {
       palette = { ...palette, ...clothes };
-      for (const { material, upper, lower } of painted) {
-        const u = material.uniforms;
-        u.uLit.value.setRGB(...palette[upper][0]);
-        u.uShade.value.setRGB(...palette[upper][1]);
-        u.uLit2.value.setRGB(...palette[lower][0]);
-        u.uShade2.value.setRGB(...palette[lower][1]);
-        u.uTrim.value.setRGB(...palette.TRIM[0]);
-      }
+      wear();
     },
     /** After he has moved: the cloth. `air(x, y, z, out)` is the wind there, `ground(x, z)` the land's height. */
     update(dt, air, ground) {

@@ -120,7 +120,7 @@ export function createCast(field, base, world) {
       lie(on = true) {
         npc.lying = on;
         npc.mode = on ? 'lie' : 'stand';
-        w.cloakMesh.visible = !on;
+        w.cloakMesh.visible = !on && w.outfit.cloak;
         return npc;
       },
     };
@@ -192,7 +192,9 @@ export function createCast(field, base, world) {
       o.position.set(npc.x, y + 0.12, npc.z);
       o.rotation.set(-Math.PI / 2, 0, npc.yaw, 'YXZ');
     } else {
-      o.position.set(npc.x, y, npc.z);
+      // (one who stands in the air, `lift` metres up, rising and settling a little)
+      npc.t = (npc.t ?? 0) + dt;
+      o.position.set(npc.x, y + (npc.lift ? npc.lift + 0.05 * Math.sin(npc.t * 1.1) : 0), npc.z);
       o.rotation.set(0, npc.yaw, 0);
     }
     // the clips: idle below walking pace, walk to about 2 m/s, jog, then run
@@ -210,6 +212,14 @@ export function createCast(field, base, world) {
     }
     if (npc.lying) for (const k of Object.keys(W)) npc.act[k]?.setEffectiveTimeScale(k === 'Idle' ? 0.15 : 1);
     npc.mixer.update(dt);
+    if (npc.open) {
+      // arms a little out from the sides, the forearms forward, the hands open (the angel)
+      const b = npc.man.bones;
+      b.upperarm_l.rotateZ(npc.open);
+      b.upperarm_r.rotateZ(-npc.open);
+      b.lowerarm_l.rotateX(npc.open * 1.1);
+      b.lowerarm_r.rotateX(npc.open * 1.1);
+    }
     o.updateMatrixWorld(true);
     if (!npc.lying) npc.w.update(Math.max(dt, 1e-3), world.air, world.heightAt);
   }

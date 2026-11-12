@@ -7,29 +7,72 @@
 // brothers and Laban's death are read, not seen; the screen goes dark for them.
 import { GATE, IN_CITY, LEHI_HOUSE, ROCK } from './places.js';
 
-// What each of them wears, as cel paint: [in the light, in the shade].
-const tunic = (lit, shade) => ({ SHIRT: [lit, shade], TROUSERS: [lit.map((v) => v * 0.95), shade] });
+// What each of them wears, as cel paint ([in the light, in the shade]) and as an outfit (wanderer.js, ROBE).
+// Jerusalem about 600 BC: a tunic of wool or linen, short for work and long for the rich, belted; a mantle over it;
+// sandals; a cloth on the head. The four brothers are dressed as families know them from the paintings of them.
+const tunic = (lit, shade) => ({ SHIRT: [lit, shade], TROUSERS: [lit.map((v) => v * 0.95), shade], SKIRT: [lit, shade] });
 export const CLOTHES = {
-  laman: { CLOAK: [[0.62, 0.2, 0.14], [0.34, 0.1, 0.13]], ...tunic([0.78, 0.68, 0.52], [0.44, 0.38, 0.44]), HAT: [[0.84, 0.76, 0.6], [0.5, 0.44, 0.48]], TRIM: [[0.9, 0.7, 0.36], [0.5, 0.4, 0.3]] },
-  lemuel: { CLOAK: [[0.72, 0.53, 0.2], [0.42, 0.28, 0.17]], ...tunic([0.8, 0.76, 0.66], [0.46, 0.44, 0.5]), HAT: [[0.62, 0.5, 0.36], [0.36, 0.28, 0.28]], TRIM: [[0.5, 0.2, 0.12], [0.3, 0.12, 0.1]] },
-  sam: { CLOAK: [[0.32, 0.43, 0.22], [0.16, 0.22, 0.17]], ...tunic([0.88, 0.82, 0.68], [0.5, 0.48, 0.56]), HAT: [[0.9, 0.86, 0.76], [0.54, 0.52, 0.6]], TRIM: [[0.86, 0.8, 0.6], [0.5, 0.46, 0.44]] },
+  // a deep green tunic with short sleeves and a border of scales, a reddish-brown wrap over his shoulder and back,
+  // gold bands at his wrist and upper arm, a dagger in his belt
+  laman: {
+    ...tunic([0.2, 0.42, 0.27], [0.1, 0.21, 0.21]),
+    TRIM: [[0.82, 0.64, 0.3], [0.5, 0.38, 0.2]],
+    CLOAK: [[0.56, 0.25, 0.15], [0.3, 0.12, 0.11]],
+    BELT: [[0.36, 0.22, 0.12], [0.18, 0.11, 0.09]],
+    OUTFIT: { head: 'none', cloak: true, hem: 0.5, edge: 2, bare: 0, belt: 2, cuffs: 2, lace: 0.36, blade: 0.2 },
+  },
+  // a dark fur skin round his waist and nothing over his chest, a band at his wrist, sandals
+  lemuel: {
+    ...tunic([0.3, 0.21, 0.14], [0.15, 0.1, 0.09]),
+    HAIR: [[0.1, 0.07, 0.05], [0.05, 0.04, 0.04]],
+    OUTFIT: { head: 'none', cloak: false, hem: 0.6, edge: 3, bare: 2, belt: 0, cuffs: 3, lace: 0.36, blade: 0 },
+  },
+  // as Nephi: a tunic of rough hide over one shoulder, a wide banded belt, forearm guards; a blue band on his brow
+  sam: {
+    ...tunic([0.82, 0.72, 0.5], [0.52, 0.42, 0.32]),
+    HEADBAND: [[0.22, 0.32, 0.6], [0.12, 0.16, 0.38]],
+    HAIR: [[0.22, 0.14, 0.08], [0.11, 0.07, 0.06]],
+    OUTFIT: { head: 'band', cloak: false, hem: 0.6, edge: 1, bare: 1, belt: 1, cuffs: 1, lace: 0.42, blade: 0 },
+  },
+  // a rich man of the city: a long robe of fine white linen, a purple mantle bordered with gold, a crimson girdle
+  // banded with gold, gold at his wrists, and his sword, "the hilt thereof was of pure gold" (4:9)
   laban: {
-    CLOAK: [[0.44, 0.15, 0.44], [0.21, 0.07, 0.26]],
     ...tunic([0.96, 0.93, 0.86], [0.56, 0.54, 0.64]),
+    CLOAK: [[0.44, 0.15, 0.44], [0.21, 0.07, 0.26]],
     HAT: [[0.95, 0.9, 0.78], [0.58, 0.54, 0.6]],
     TRIM: [[1.0, 0.8, 0.3], [0.62, 0.46, 0.2]],
     BOOTS: [[0.5, 0.32, 0.16], [0.26, 0.15, 0.1]],
+    BELT: [[0.62, 0.12, 0.12], [0.34, 0.06, 0.1]],
+    BELT2: [[1.0, 0.78, 0.3], [0.62, 0.42, 0.18]],
+    LEATHER: [[0.42, 0.2, 0.14], [0.22, 0.1, 0.1]],
+    OUTFIT: { head: 'cloth', cloak: true, hem: 0.13, edge: 0, bare: 0, belt: 1, cuffs: 2, lace: 0.25, blade: 0.75 },
   },
-  servant: { CLOAK: [[0.3, 0.22, 0.16], [0.15, 0.1, 0.09]], ...tunic([0.56, 0.5, 0.42], [0.3, 0.27, 0.3]), HAT: [[0.4, 0.34, 0.28], [0.22, 0.18, 0.18]], TRIM: [[0.3, 0.22, 0.16], [0.15, 0.1, 0.09]] },
-  zoram: { CLOAK: [[0.4, 0.43, 0.48], [0.2, 0.22, 0.3]], ...tunic([0.8, 0.74, 0.6], [0.46, 0.43, 0.5]), HAT: [[0.72, 0.66, 0.54], [0.42, 0.38, 0.42]], TRIM: [[0.6, 0.6, 0.62], [0.34, 0.34, 0.4]] },
+  // his servants: short tunics of undyed wool with a brown stripe at the hem, a cord belt, a plain head cloth
+  servant: {
+    ...tunic([0.68, 0.61, 0.5], [0.38, 0.34, 0.36]),
+    TRIM: [[0.42, 0.3, 0.2], [0.24, 0.16, 0.13]],
+    HAT: [[0.6, 0.53, 0.42], [0.34, 0.3, 0.3]],
+    BELT: [[0.46, 0.36, 0.24], [0.24, 0.18, 0.15]],
+    OUTFIT: { head: 'cloth', cloak: false, hem: 0.55, edge: 0, bare: 0, belt: 2, cuffs: 0, lace: 0.3, blade: 0 },
+  },
+  // the servant who keeps the treasury: a knee-length linen tunic with a blue band at the hem, a grey-brown mantle
+  zoram: {
+    ...tunic([0.82, 0.76, 0.62], [0.47, 0.44, 0.5]),
+    TRIM: [[0.3, 0.4, 0.62], [0.16, 0.22, 0.4]],
+    CLOAK: [[0.44, 0.4, 0.36], [0.22, 0.2, 0.24]],
+    HAT: [[0.72, 0.66, 0.54], [0.42, 0.38, 0.42]],
+    BELT: [[0.36, 0.22, 0.12], [0.18, 0.11, 0.09]],
+    OUTFIT: { head: 'cloth', cloak: true, hem: 0.5, edge: 0, bare: 0, belt: 2, cuffs: 0, lace: 0.32, blade: 0 },
+  },
+  // a heavenly messenger: a loose white robe to below the feet, wide sleeves, open at the neck; white hair
   angel: {
-    CLOAK: [[1.0, 0.98, 0.94], [0.8, 0.8, 0.86]],
-    ...tunic([1.0, 0.98, 0.94], [0.82, 0.82, 0.88]),
-    HAT: [[1.0, 0.98, 0.94], [0.82, 0.82, 0.88]],
-    HAIR: [[0.9, 0.86, 0.76], [0.7, 0.68, 0.7]],
-    SKIN: [[1.0, 0.9, 0.8], [0.8, 0.72, 0.7]],
-    BOOTS: [[1.0, 0.98, 0.94], [0.82, 0.82, 0.88]],
-    TRIM: [[1.0, 0.92, 0.7], [0.8, 0.74, 0.6]],
+    ...tunic([1.0, 0.98, 0.94], [0.8, 0.8, 0.87]),
+    CLOAK: [[1.0, 0.98, 0.94], [0.8, 0.8, 0.87]],
+    HAIR: [[0.9, 0.88, 0.84], [0.66, 0.66, 0.7]],
+    SKIN: [[0.96, 0.76, 0.6], [0.7, 0.52, 0.48]],
+    BOOTS: [[0.96, 0.76, 0.6], [0.7, 0.52, 0.48]],
+    TRIM: [[0.98, 0.95, 0.88], [0.8, 0.78, 0.8]],
+    OUTFIT: { head: 'none', cloak: false, hem: 0.01, edge: 0, bare: 0, belt: 0, cuffs: 0, lace: 0, blade: 0, sleeves: true, neck: 'v' },
   },
 };
 /** Who is in the story, in the order they are made, and whether they wear a beard. */
@@ -249,17 +292,20 @@ export function story(g) {
         const stands = P(ROCK[0] + 9, ROCK[1] - 2);
         const angel = who('angel').place(...stands, yawTo(stands, hollow));
         angel.w.glow.value = 0;
+        // above the ground a little, his hands open
+        angel.lift = 0.55;
+        angel.open = 0.3;
         g.ui.fade(0, 0.6);
         for (const n of ['laman', 'lemuel', 'sam']) who(n).face(...stands);
         // a low view from beside the brothers, up at him, with the light round him on the ground
         const side = lerp(stands, hollow, 0.62);
         const [ax, az] = [stands[0] - hollow[0], stands[1] - hollow[1]];
-        g.view({ from: [side[0] + az * 0.28, side[1] - ax * 0.28, 1.0], to: [...stands, 0.9] });
+        g.view({ from: [side[0] + az * 0.28, side[1] - ax * 0.28, 1.0], to: [...stands, 1.35] });
         let bright = 0;
         await c.hold(
           c.until(() => {
             bright = Math.min(1, bright + 0.015);
-            angel.w.glow.value = 0.85 * bright;
+            angel.w.glow.value = 0.4 * bright;
             g.guidance.shine(...stands, 9 * bright);
             return bright >= 1;
           }),
@@ -269,7 +315,7 @@ export function story(g) {
         await c.hold(
           c.until(() => {
             bright = Math.max(0, bright - 0.02);
-            angel.w.glow.value = 0.85 + (1 - bright) * 0.8;
+            angel.w.glow.value = 0.4 + (1 - bright) * 1.2;
             g.guidance.shine(...stands, 9 * bright);
             return bright <= 0;
           }),
