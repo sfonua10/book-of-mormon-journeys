@@ -5,6 +5,7 @@
 import { patchBlock } from 'patch-block';
 import { Animator } from '../figure/animator.js';
 import { Follow } from '../figure/camera.js';
+import { holdArms } from '../figure/hold.js';
 import { Input } from '../figure/input.js';
 import { Player as Walker } from '../figure/player.js';
 import RAPIER from '../figure/rapier/rapier.mjs';
@@ -19,16 +20,18 @@ import { createSounds } from './sounds.js';
 import { createStrokes } from './strokes.js';
 import { createTrees } from './trees.js';
 import { CLOTHES, createWanderer } from './wanderer.js';
-import { addCityColliders, createCity, createProps } from '../game/city.js';
+import { addCityColliders, createCity, createProps, TURN as CITY_TURN } from '../game/city.js';
 import { createDirector } from '../game/director.js';
 import { createGuidance } from '../game/guidance.js';
+import { createMusic } from '../game/music.js';
+import { createTown, TOWN_CLOTHES, TOWNSFOLK } from '../game/town.js';
 import { cloneMan, createCast } from '../game/npc.js';
 import { reference, verses } from '../game/scripture.js';
 import { CLOTHES as STORY_CLOTHES, PEOPLE, story } from '../game/story.js';
 import { createUI } from '../game/ui.js';
 import { loadMan } from '../figure/man.js';
 import { fromValley, heightAt, HERO, paint, START, tarnDistance } from './world.js';
-import { CITY } from '../game/places.js';
+import { CITY, IN_CITY } from '../game/places.js';
 
 const params = new URLSearchParams(location.search);
 // how long each part of getting ready took, ms: for tests
@@ -96,6 +99,8 @@ await stage(0.04, 'Painting the sky');
 // Sound is made ready now, while the land is being made: opening the PC's audio can hold a page's thread for a
 // second or more, and here nothing is waiting on it. It only starts playing on the first click.
 const sounds = createSounds();
+// the story's music, made in code and played through them
+const music = createMusic(sounds);
 const soundsReady = params.has('nosound') ? null : sounds.load();
 
 const canvas = $('view');
@@ -234,6 +239,11 @@ let clock = 0;
 
 // the story's parts, made once everything else is ready (see the end of this file)
 let director = null;
+/** What Nephi last held ({ out, up, wide }), and how far his arms are into holding it, 0 to 1. */
+let carryPose = null;
+let carryK = 0;
+/** The treasury's door: where it is, and the collider that shuts it. */
+let treasuryDoor = null;
 let guidance = null;
 /** A fixed view the story asks for ({ position, target }), or null for the eye behind Nephi. */
 let cinematic = null;
@@ -274,7 +284,7 @@ function updatePlayer(dt) {
   if (keys.has('KeyD') || keys.has('ArrowRight')) mx += 1;
   if (keys.has('KeyA') || keys.has('ArrowLeft')) mx -= 1;
   const len = Math.hypot(mx, mz) || 1;
-  const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? RUN : WALK;
+  const speed = Math.min(walker?.cap || Infinity, keys.has('ShiftLeft') || keys.has('ShiftRight') ? RUN : WALK);
   const wantX = ((fx * mz + rx * mx) / len) * speed;
   const wantZ = ((fz * mz + rz * mx) / len) * speed;
   const grip = player.onGround ? 9 : 2;
@@ -385,12 +395,20 @@ const physics = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   }
   // the city's walls and houses, the house in the land of inheritance, the tents
   addCityColliders(RAPIER, physics, city.solids);
+  // the treasury's door, shut until the keeper of the keys opens it (4:20)
+  {
+    const [x, z] = fromValley(CITY.at[0] + IN_CITY.treasuryDoor[0], CITY.at[1] + IN_CITY.treasury[3] - 0.45);
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), CITY_TURN);
+    treasuryDoor = { at: [x, z], collider: physics.createCollider(RAPIER.ColliderDesc.cuboid(1.1, 2, 0.4).setTranslation(x, field.heightAt(x, z) + 1.6, z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })) };
+  }
 }
 const wanderer = await wandererComing;
 scene.add(wanderer.group);
 // everyone else in the story
 const cast = createCast(field, await manComing, { heightAt: (x, z) => field.heightAt(x, z), air: (x, y, z, out) => air(x, y, z, out), scene });
 await Promise.all(PEOPLE.map(([name, dress, beard]) => cast.add(name, STORY_CLOTHES[dress], { beard })));
+// and the people of the city, by day
+await Promise.all(TOWNSFOLK.map(([name, dress, beard]) => cast.add(name, TOWN_CLOTHES[dress], { beard })));
 scene.add(cast.group);
 const props = createProps(city, (x, z) => field.heightAt(x, z));
 scene.add(props.group);
@@ -487,6 +505,16 @@ function updateWanderer(dt) {
   const looking = walker.mode === 'move' || walker.mode === 'idleExtra' ? Math.min(1, Math.max(0, 1 - (walker.speed - 1.5) / 2)) : 0;
   animator.lookToward(dt, camera.getWorldDirection(gaze), looking);
   animator.armClearance(dt);
+  // what Nephi carries, he carries in both hands (g.player.holds, set by props.carry)
+  {
+    const holds = director ? g.player.holds : null;
+    carryPose = holds ?? carryPose;
+    carryK = Math.min(1, Math.max(0, carryK + (holds ? 1 : -1) * dt * 4));
+    if (carryK > 0 && carryPose) {
+      animator.object.updateMatrixWorld(true);
+      holdArms(animator.bones, animator.object, walker.yaw, carryPose, carryK);
+    }
+  }
   if (walker.mode === 'move' && !walker.strafe) animator.leanInto(dt, walker.turnRate, walker.speed, walker.accelF);
   else animator.leanInto(dt, 0, 0, 0);
   animator.placeFeet(dt, (x, z, from) => walker.ground(x, z, from, 1.4), at.y, onGround ? 1 : 0);
@@ -681,6 +709,7 @@ function tick(dt) {
   field.update(dt, camera);
   director?.update(dt);
   guidance?.update(dt);
+  music.update(dt);
   showMarker();
   farWoods.update(dt, wind.speed);
   frame.update(dt, camera);
@@ -760,6 +789,9 @@ const g = {
   props,
   field,
   sounds,
+  music,
+  /** Whether the page was opened with ?name (a test asking for something). */
+  flag: (name) => params.has(name),
   verses,
   reference,
   P: (u, v) => fromValley(u, v),
@@ -783,6 +815,8 @@ const g = {
     get yaw() {
       return walker.yaw;
     },
+    // (he can carry things as the others do: props.carry)
+    visible: true,
   },
   log: (message) => console.log(`[game] ${message}`),
   setHour,
@@ -794,6 +828,20 @@ const g = {
     follow.pitch = 0.12;
     follow.pivot.set(0, 0, 0);
     follow.distance = follow.want;
+  },
+  /** What he carries weighs on him: he goes no faster than `cap` m/s (null: nothing weighs on him). */
+  burden(cap) {
+    walker.cap = cap;
+  },
+  /** Opens or shuts the treasury's door. */
+  door(open) {
+    treasuryDoor.collider.setEnabled(!open);
+    if (open) props.hide('door');
+    else props.show('door', treasuryDoor.at);
+  },
+  /** Lights the room the story is at: 'treasury' or 'lehi' (city.js). */
+  room(name) {
+    city.light(name);
   },
   /** Nephi's own clothes, or Laban's (4:19). */
   dress(who) {
@@ -844,6 +892,7 @@ const g = {
     return !!director?.frozen;
   },
 };
+g.town = createTown(g);
 guidance = createGuidance(g, ui);
 director = createDirector(story(g), ui, g, { auto: g.auto, autoRead: params.has('autoread') ? Number(params.get('autoread')) : 0.15 });
 

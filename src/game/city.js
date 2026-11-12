@@ -30,7 +30,7 @@ function mulberry(seed) {
 }
 
 // What each face is: the shader paints them differently.
-const PART = { PLASTER: 0, ROOF: 1, DARK: 2, WOOD: 3, STONE: 4, CLOTH: 5, GOLD: 6, WINDOW: 7 };
+const PART = { PLASTER: 0, ROOF: 1, DARK: 2, WOOD: 3, STONE: 4, CLOTH: 5, GOLD: 6, WINDOW: 7, LAMP: 8 };
 
 const PLASTERS = [
   [0.86, 0.8, 0.68],
@@ -66,6 +66,9 @@ void main() {
 const fragment = /* glsl */ `
 ${COMMON}
 uniform float uNight;     // 0 by day, 1 at night: lamps in the windows
+uniform vec4 uRoomLamp;   // a lamp burning in a room (the treasury): where it is, and how far its light reaches
+uniform vec4 uRoom;       // that room: the valley's line (x, z) and the room's half-sizes along and across it
+uniform float uRoomShade; // how much of the day's light the room's roof keeps off what is in it (0: none)
 layout(location = 0) out vec4 outC;
 in vec3 vWorld;
 in vec3 vNormal;
@@ -124,12 +127,17 @@ void main() {
     float shine = pow(max(dot(reflect(-normalize(uCamPos - vWorld), N), uSunDir), 0.0), 8.0);
     paint *= 1.0 + dabs * 0.3;
     glow = vColor * (0.25 + 1.5 * shine) * (uSunColor * 0.3 + 0.2);
-  } else {
+  } else if (part < 7.5) {
     // a window: dark by day; at night most have a lamp behind them
     paint = vec3(0.05, 0.045, 0.05);
     float on = step(0.32, hash12(vec2(seed * 31.0, floor(run * 0.5) + floor(up))));
     float flick = 0.86 + 0.14 * sin(uTime * (3.0 + 4.0 * seed) + run * 7.0) * sin(uTime * 1.7 + seed * 40.0);
     glow = vec3(2.4, 1.25, 0.45) * on * flick * uNight;
+    alpha = 0.4;
+  } else {
+    // the flame of a lamp, always burning
+    paint = vec3(0.3, 0.16, 0.06);
+    glow = vec3(2.6, 1.4, 0.5) * (0.86 + 0.14 * sin(uTime * (5.0 + 4.0 * seed)) * sin(uTime * 2.3 + seed * 40.0));
     alpha = 0.4;
   }
   vec3 sun = uSunColor * 0.42 + uSkyColor * 0.3;
@@ -139,7 +147,17 @@ void main() {
   if (part > 0.5 && part < 1.5) sky *= 1.25;
   // the ground at a wall's foot is in its own shade
   float foot = mix(0.72, 1.0, smoothstep(0.0, 1.2, up));
-  vec3 col = paint * mix(sky, sun, lit) * (part < 1.5 || part > 3.5 ? foot : 1.0) + glow;
+  vec3 col = paint * mix(sky, sun, lit) * (part < 1.5 || part > 3.5 ? foot : 1.0);
+  // what the room's lamp falls on: the faces turned to it, less with distance
+  vec3 toLamp = uRoomLamp.xyz - vWorld;
+  float reach = 1.0 - smoothstep(0.25, 1.0, length(toLamp) / max(uRoomLamp.w, 0.001));
+  // (and only within the room's own walls: a lamp does not shine through stone)
+  vec2 off = vec2(dot(-toLamp.xz, uRoom.xy), dot(-toLamp.xz, vec2(-uRoom.y, uRoom.x)));
+  float within = step(abs(off.x), uRoom.z) * step(abs(off.y), uRoom.w);
+  // (under a roof by day it is dimmer than out of doors)
+  col *= 1.0 - uRoomShade * within * step(vWorld.y, uRoomLamp.y + 2.45);
+  col += glow;
+  col += paint * vec3(1.15, 0.66, 0.3) * reach * within * smoothstep(0.0, 0.35, dot(N, normalize(toLamp)));
   outC = vec4(applyFog(col, vWorld), alpha);
 }
 `;
@@ -385,26 +403,124 @@ function buildCity(b, random) {
     b.box(ca - 0.4, ca + 1, cv + 27.4, cv + 28, cb - 1.6, cb + 4.2, { part: PART.STONE, colour: STONE, seed: 0.93, base: cb });
     b.box(ca - 0.4, ca + 1, cv + 33, cv + 33.6, cb - 1.6, cb + 4.2, { part: PART.STONE, colour: STONE, seed: 0.93, base: cb });
   }
-  // the treasury: a strong storehouse of dressed stone, with one door, on the main street
+  // The treasury: a strong storehouse of dressed stone on the main street, with one door, and a room inside it that
+  // can be walked into (4:20): its walls, a roof over them, chests and jars along the walls, a table at the back
+  // where the plates are kept, and a lamp to either side.
   {
     const [u0, v0, u1, v1] = IN_CITY.treasury;
     const [a, c, d, e] = S(u0, u1, v0, v1);
     const base = footing(a, c, d, e);
-    b.box(a, c, d, e, base - 1.6, base + 6.5, { part: PART.STONE, colour: [0.84, 0.78, 0.66], seed: 0.95, base });
+    const stone = { part: PART.STONE, colour: [0.84, 0.78, 0.66], seed: 0.95, base, roofPart: PART.STONE, roofColour: [0.84, 0.78, 0.66] };
+    const T2 = 0.9;
+    const top = base + 6.5;
     const door = cu + IN_CITY.treasuryDoor[0];
-    b.patch('n', e, door, 2.2, base - 0.1, base + 3.1, base, PART.DARK, STONE, 0.95);
-    b.patch('n', e + 0.02, door, 1.8, base - 0.1, base + 2.8, base, PART.WOOD, [0.3, 0.2, 0.13], 0.96);
-    // two lamps either side of the door
+    const hw = 1.1;
+    b.box(a, c, d, d + T2, base - 1.6, top, stone);
+    b.box(a, a + T2, d + T2, e - T2, base - 1.6, top, stone);
+    b.box(c - T2, c, d + T2, e - T2, base - 1.6, top, stone);
+    b.box(a, door - hw, e - T2, e, base - 1.6, top, stone);
+    b.box(door + hw, c, e - T2, e, base - 1.6, top, stone);
+    b.box(door - hw, door + hw, e - T2, e, base + 3.0, top, stone);
+    // the roof, and under it the ceiling's beams
+    b.box(a + T2, c - T2, d + T2, e - T2, top - 0.5, top, { ...stone, roofPart: PART.ROOF, roofColour: ROOF });
+    b.quad([[a + T2, top - 0.5, d + T2], [c - T2, top - 0.5, d + T2], [c - T2, top - 0.5, e - T2], [a + T2, top - 0.5, e - T2]], [0, -1, 0], PART.WOOD, [0.3, 0.22, 0.15], [[a, 0], [c, 0], [c, 6], [a, 6]], 0.95);
+    // two lamps on the street, either side of the door
     b.patch('n', e, door - 2.0, 0.35, base + 2.4, base + 2.9, base, PART.WINDOW, STONE, 0.12);
     b.patch('n', e, door + 2.0, 0.35, base + 2.4, base + 2.9, base, PART.WINDOW, STONE, 0.14);
+    // inside: a stone table at the back, facing the door
+    const back = d + T2;
+    b.box(door - 0.9, door + 0.9, back + 0.5, back + 1.4, base - 0.5, ground(door, back + 0.95) + IN_CITY.tableTop, { ...stone, seed: 0.97 });
+    // a lamp in a niche to either side of the table
+    for (const side of [-1, 1]) {
+      b.patch('n', back, door + side * 2.6, 0.5, base + 1.9, base + 2.5, base, PART.DARK, STONE, 0.97);
+      b.patch('n', back + 0.02, door + side * 2.6, 0.22, base + 1.95, base + 2.3, base, PART.LAMP, STONE, 0.3 + side * 0.1);
+    }
+    // chests along the side walls, some open on what they hold; tall jars in the corners
+    const GOLD = [1.0, 0.76, 0.28];
+    const SILVER = [0.86, 0.88, 0.92];
+    const chest = (u, v, w, dp, h, lid) => b.box(u - w / 2, u + w / 2, v - dp / 2, v + dp / 2, base - 0.4, ground(u, v) + h, { part: PART.WOOD, colour: WOOD, seed: random(), base, solid: false, roofPart: lid ? PART.GOLD : PART.WOOD, roofColour: lid ?? WOOD });
+    for (const [side, wall] of [[1, a + T2], [-1, c - T2]]) {
+      for (let i = 0; i < 5; i++) {
+        const v = back + 1.6 + i * 2.5 + random() * 0.5;
+        chest(wall + side * 0.75, v, 1.0, 1.5 + random() * 0.4, 0.5 + random() * 0.5, [GOLD, null, SILVER, null, GOLD][Math.floor(random() * 5)]);
+      }
+      const jar = (u, v, r, h) => b.box(u - r, u + r, v - r, v + r, base - 0.4, ground(u, v) + h, { colour: [0.62, 0.4, 0.26], seed: random(), base, solid: false, roofPart: PART.DARK });
+      jar(wall + side * 0.7, e - T2 - 0.8, 0.34, 1.1);
+      jar(wall + side * 1.6, e - T2 - 0.7, 0.27, 0.85);
+    }
   }
 }
 
-/** Lehi's house in the land of their inheritance, with a walled court before it where his riches are kept. */
+/** Lehi's house, in (u, v) from LEHI_HOUSE: its footprint, how thick its walls are, how tall, and its doorway. */
+const LEHI = { u: [-8, 8], v: [-12, -4], wall: 0.6, tall: 5.8, doorHalf: 1.1, doorTall: 2.7 };
+
+/**
+ * Lehi's house in the land of their inheritance, with a walled court before it. The house is one long room that can
+ * be walked into by its door: it is there that his riches are kept (3:22), "his gold, and his silver, and his
+ * precious things" (2:4).
+ */
 function buildLehiHouse(b, random) {
   const [hu, hv] = LEHI_HOUSE;
   // the house along the back (south side, -v) of the court; the court opens to the path on its north side
-  house(b, random, hu - 8, hu + 8, hv - 12, hv - 4, 5.8, { colour: [0.88, 0.82, 0.7], door: ['n', hu], windows: 'nwe', seed: 0.5 });
+  const [u0, u1, v0, v1] = [hu + LEHI.u[0], hu + LEHI.u[1], hv + LEHI.v[0], hv + LEHI.v[1]];
+  const T = LEHI.wall;
+  const hw = LEHI.doorHalf;
+  const base = footing(u0, u1, v0, v1);
+  const top = base + LEHI.tall;
+  const colour = [0.88, 0.82, 0.7];
+  const seed = 0.5;
+  const plaster = { colour, seed, base, roofPart: PART.PLASTER, roofColour: colour };
+  const wood = { part: PART.WOOD, colour: WOOD, seed: 0.53, base, solid: false, roofPart: PART.WOOD, roofColour: WOOD };
+  const [y0, y1] = [base - 1.6, top + 0.55];
+  // its four walls, the north one in two with the doorway between and the wall over it
+  b.box(u0, u1, v0, v0 + T, y0, y1, plaster);
+  b.box(u0, u0 + T, v0 + T, v1 - T, y0, y1, plaster);
+  b.box(u1 - T, u1, v0 + T, v1 - T, y0, y1, plaster);
+  b.box(u0, hu - hw, v1 - T, v1, y0, y1, plaster);
+  b.box(hu + hw, u1, v1 - T, v1, y0, y1, plaster);
+  const over = base + LEHI.doorTall;
+  b.box(hu - hw, hu + hw, v1 - T, v1, over, y1, plaster);
+  b.quad([[hu - hw, over, v1 - T], [hu + hw, over, v1 - T], [hu + hw, over, v1], [hu - hw, over, v1]], [0, -1, 0], PART.WOOD, WOOD, [[0, 0], [2.2, 0], [2.2, T], [0, T]], 0.53);
+  // the roof, a parapet's height below the top of the walls, and under it the ceiling's beams
+  b.box(u0 + T, u1 - T, v0 + T, v1 - T, top - 0.4, top, { ...plaster, roofPart: PART.ROOF, roofColour: ROOF });
+  b.quad([[u0 + T, top - 0.4, v0 + T], [u1 - T, top - 0.4, v0 + T], [u1 - T, top - 0.4, v1 - T], [u0 + T, top - 0.4, v1 - T]], [0, -1, 0], PART.WOOD, [0.34, 0.25, 0.17], [[u0, 0], [u1, 0], [u1, 6], [u0, 6]], seed);
+  // a floor of beaten earth
+  const f = base + 0.03;
+  b.quad([[u0 + T, f, v0 + T], [u0 + T, f, v1 - T], [u1 - T, f, v1 - T], [u1 - T, f, v0 + T]], [0, 1, 0], PART.ROOF, [0.62, 0.53, 0.41], [[u0, v0], [u0, v1], [u1, v1], [u1, v0]], 0.54);
+  // the doorway: posts and a beam of wood round it, a stone at its foot, and its two leaves standing open
+  b.box(hu - hw - 0.3, hu + hw + 0.3, v1, v1 + 0.12, over, over + 0.34, wood);
+  for (const side of [-1, 1]) {
+    const edge = hu + side * hw;
+    b.box(Math.min(edge, edge + side * 0.2), Math.max(edge, edge + side * 0.2), v1, v1 + 0.1, base - 0.2, over, wood);
+    b.box(Math.min(edge + side * 0.22, edge + side * 0.32), Math.max(edge + side * 0.22, edge + side * 0.32), v1 + 0.1, v1 + 0.1 + hw, base - 0.1, over - 0.08, { ...wood, seed: 0.55 + side * 0.02 });
+  }
+  b.box(hu - hw - 0.35, hu + hw + 0.35, v1 - T, v1 + 0.55, base - 0.4, base + 0.07, { part: PART.STONE, colour: STONE, seed: 0.56, base, solid: false, roofPart: PART.STONE, roofColour: STONE });
+  // windows, small and high: seen from without and from within
+  const opening = (side, plane, inner, at) => {
+    b.patch(side, plane, at, 0.6, base + 3.5, base + 4.35, base, PART.WINDOW, PLASTERS[0], seed);
+    b.patch({ n: 's', w: 'e', e: 'w' }[side], inner, at, 0.6, base + 3.5, base + 4.35, base, PART.WINDOW, PLASTERS[0], seed);
+  };
+  for (const du of [-5.6, -3.0, 3.0, 5.6]) opening('n', v1, v1 - T, hu + du);
+  for (const dv of [-2.2, 0.2]) {
+    opening('w', u0, u0 + T, hv - 8 + dv);
+    opening('e', u1, u1 - T, hv - 8 + dv);
+  }
+  // within: a lamp in a niche to either side at the back, a low table between them, mats to sleep on, jars
+  const back = v0 + T;
+  for (const side of [-1, 1]) {
+    b.patch('n', back, hu + side * 2.6, 0.5, base + 1.7, base + 2.3, base, PART.DARK, STONE, 0.57);
+    b.patch('n', back + 0.02, hu + side * 2.6, 0.22, base + 1.75, base + 2.1, base, PART.LAMP, STONE, 0.3 + side * 0.1);
+  }
+  b.box(hu - 1.2, hu + 1.2, back + 0.15, back + 0.95, base - 0.3, base + LEHI_TABLE, { ...wood, solid: true, seed: 0.58 });
+  for (const [du, dv, turn] of [[-6.2, -6.4, 0], [-4.0, -6.2, 1]]) {
+    const [lu, lv] = turn ? [1.9, 0.8] : [0.8, 1.9];
+    b.box(hu + du - lu / 2, hu + du + lu / 2, hv + dv - lv / 2, hv + dv + lv / 2, base, base + 0.1, { part: PART.CLOTH, colour: [0.5, 0.3, 0.2], seed: 0.59 + turn * 0.02, base, solid: false, roofPart: PART.CLOTH, roofColour: [0.56, 0.34, 0.22] });
+  }
+  const jar = (u, v, r, h) => b.box(u - r, u + r, v - r, v + r, base - 0.2, base + h, { colour: [0.62, 0.4, 0.26], seed: random(), base, solid: false, roofPart: PART.DARK });
+  jar(u1 - T - 0.6, v1 - T - 0.6, 0.32, 1.05);
+  jar(u1 - T - 1.4, v1 - T - 0.5, 0.25, 0.8);
+  jar(u0 + T + 0.55, back + 0.6, 0.3, 0.95);
+
   const cb = footing(hu - 9, hu + 9, hv - 4, hv + 10);
   const wall = { colour: [0.84, 0.78, 0.66], seed: 0.51, base: cb };
   b.box(hu - 9, hu - 8.4, hv - 4, hv + 10, cb - 1.6, cb + 2.4, wall);
@@ -414,6 +530,8 @@ function buildLehiHouse(b, random) {
   // a storeroom against the east wall of the court
   house(b, random, hu + 4, hu + 8.4, hv - 4, hv + 1, 3.2, { colour: [0.8, 0.73, 0.6], door: ['w', hv - 1.5], windows: '', seed: 0.52 });
 }
+/** How high the top of the table in Lehi's house is. */
+export const LEHI_TABLE = 0.55;
 
 /** A goat-hair tent: a long low ridge on poles, open at its front. */
 function tent(b, u, v, len, wide, tall, turn) {
@@ -456,7 +574,7 @@ export function createCity(field) {
   buildCity(b, random);
   buildLehiHouse(b, random);
   buildCamp(b);
-  const uniforms = { ...field.uniforms, uNight: { value: 0 } };
+  const uniforms = { ...field.uniforms, uNight: { value: 0 }, uRoomLamp: { value: new THREE.Vector4(0, 0, 0, 0) }, uRoom: { value: new THREE.Vector4(1, 0, 0, 0) }, uRoomShade: { value: 0 } };
   const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: vertex, fragmentShader: fragment, uniforms, side: THREE.DoubleSide });
   const mesh = new THREE.Mesh(b.build(), material);
   mesh.frustumCulled = false;
@@ -464,7 +582,34 @@ export function createCity(field) {
     const [x, z] = fromValley((u0 + u1) / 2, (v0 + v1) / 2);
     return { at: [x, (y0 + y1) / 2, z], half: [(u1 - u0) / 2, (y1 - y0) / 2, (v1 - v0) / 2] };
   });
-  return { mesh, uniforms, solids };
+  // The rooms that can be walked into, each with its lamp: the treasury (by night) and Lehi's house (by day, where
+  // the roof keeps the sun off). One is lit at a time: the one the story is at.
+  const rooms = {
+    treasury: (() => {
+      const [u0, v0, u1, v1] = IN_CITY.treasury;
+      return { u: CITY.at[0] + (u0 + u1) / 2, v: CITY.at[1] + (v0 + v1) / 2, half: [(u1 - u0) / 2 - 0.85, (v1 - v0) / 2 - 0.85], up: 3.2, reach: 16, shade: 0 };
+    })(),
+    lehi: {
+      u: LEHI_HOUSE[0] + (LEHI.u[0] + LEHI.u[1]) / 2,
+      v: LEHI_HOUSE[1] + (LEHI.v[0] + LEHI.v[1]) / 2,
+      half: [(LEHI.u[1] - LEHI.u[0]) / 2 - LEHI.wall + 0.05, (LEHI.v[1] - LEHI.v[0]) / 2 - LEHI.wall + 0.05],
+      up: 3.0,
+      reach: 9,
+      shade: 0.6,
+    },
+  };
+  /** Lights one of the rooms. */
+  const light = (name) => {
+    const r = rooms[name];
+    const [x, z] = fromValley(r.u, r.v);
+    uniforms.uRoomLamp.value.set(x, heightAt(x, z) + r.up, z, r.reach);
+    // (the room itself, within its walls)
+    uniforms.uRoom.value.set(DX, DZ, r.half[0], r.half[1]);
+    uniforms.uRoomShade.value = r.shade;
+  };
+  light('treasury');
+  return { mesh, uniforms, solids, light };
+
 }
 
 /** Adds a collider for each of the city's solids to a Rapier world. */
@@ -492,7 +637,36 @@ export function createProps(city, heightAt) {
     mesh.visible = false;
     return mesh;
   };
+  /** A thing turned on a wheel (a jar, a cup): its outline as [radius, height] pairs, lying on its side. */
+  const turned = (outline, colour, seed) => {
+    const g = new THREE.LatheGeometry(outline.map(([r, y]) => new THREE.Vector2(r, y)), 14);
+    const n = g.attributes.position.count;
+    const col = new Float32Array(n * 3);
+    const info = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) {
+      col.set(colour, i * 3);
+      info.set([PART.PLASTER, g.attributes.uv.getX(i) * 1.2, g.attributes.position.getY(i), seed], i * 4);
+    }
+    g.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+    g.setAttribute('aInfo', new THREE.BufferAttribute(info, 4));
+    // tipped over, its mouth a little down, resting on its widest part
+    const wide = Math.max(...outline.map(([r]) => r));
+    g.rotateZ(Math.PI / 2 + 0.12);
+    g.translate(0, wide, 0);
+    const mesh = new THREE.Mesh(g, city.mesh.material);
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    return mesh;
+  };
+  const CLAY = [0.66, 0.4, 0.25];
   const kinds = {
+    // a wine jar, fallen over and empty, and the cup that was drunk from (4:7)
+    jar: turned([[0, 0], [0.07, 0], [0.15, 0.1], [0.19, 0.25], [0.17, 0.4], [0.09, 0.5], [0.065, 0.58], [0.095, 0.63]], CLAY, 0.71),
+    cup: turned([[0, 0], [0.035, 0], [0.05, 0.05], [0.058, 0.09]], [0.74, 0.5, 0.32], 0.72),
+    // the treasury's door: two leaves of thick planks, shut
+    door: make((b) => {
+      b.box(-1.1, 1.1, -0.09, 0.09, -0.3, 3.0, { part: PART.WOOD, colour: [0.3, 0.2, 0.13], seed: 0.96, solid: false, roofPart: PART.WOOD, roofColour: [0.3, 0.2, 0.13] });
+    }),
     // a chest of gold, its lid off and the gold heaped in it
     gold: make((b) => {
       b.box(-0.45, 0.45, -0.3, 0.3, 0, 0.5, { part: PART.WOOD, colour: WOOD, seed: 0.3, solid: false, roofPart: PART.GOLD, roofColour: GOLD });
@@ -520,35 +694,51 @@ export function createProps(city, heightAt) {
   const group = new THREE.Group();
   for (const m of Object.values(kinds)) group.add(m);
   const carried = new Map();
+  /** Whoever carries it lets go of it. */
+  const release = (name) => {
+    const had = carried.get(name);
+    if (had) had.npc.holds = null;
+    carried.delete(name);
+  };
   return {
     group,
-    /** Sets a thing down at (x, z), on the ground. */
-    show(name, [x, z]) {
-      carried.delete(name);
+    /** Sets a thing down at (x, z), on the ground or `up` metres above it, turned `turn` about. */
+    show(name, [x, z], { up = 0, turn = 0 } = {}) {
+      release(name);
       const m = kinds[name];
-      m.position.set(x, heightAt(x, z), z);
-      m.rotation.set(0, 0, 0);
+      m.position.set(x, heightAt(x, z) + up, z);
+      m.rotation.set(0, turn, 0);
+      m.scale.setScalar(1);
       m.visible = true;
     },
     hide(name) {
-      carried.delete(name);
+      release(name);
       kinds[name].visible = false;
     },
-    /** Someone carries it in front of him (null to stop). */
-    carry(name, npc) {
-      if (!npc) return void carried.delete(name);
-      carried.set(name, npc);
+    /**
+     * Someone carries it before him in both hands (null to stop): `out` metres before him, `up` metres from the
+     * ground, drawn at `size` of itself (a chest in a man's arms is a small one); `wide` is half its width as he
+     * holds it, where his hands go. While he has it, his `holds` says so, and his arms are put to it (hold.js).
+     */
+    carry(name, npc, { out = 0.3, up = 1.0, size = 1, wide = 0.15 } = {}) {
+      release(name);
+      if (!npc) return;
+      carried.set(name, { npc, out, up });
+      npc.holds = { out, up, wide };
+      kinds[name].scale.setScalar(size);
       kinds[name].visible = true;
     },
+    /** Whether someone has it in his arms. */
+    carrying: (name) => carried.has(name),
     reset() {
-      carried.clear();
+      for (const name of [...carried.keys()]) release(name);
       for (const m of Object.values(kinds)) m.visible = false;
     },
     update() {
-      for (const [name, npc] of carried) {
+      for (const [name, { npc, out, up }] of carried) {
         const m = kinds[name];
         m.visible = npc.visible;
-        m.position.set(npc.x + Math.sin(npc.yaw) * 0.32, heightAt(npc.x, npc.z) + 1.0, npc.z + Math.cos(npc.yaw) * 0.32);
+        m.position.set(npc.x + Math.sin(npc.yaw) * out, heightAt(npc.x, npc.z) + up, npc.z + Math.cos(npc.yaw) * out);
         // (props are built turned into the valley's frame: undo that, then face the way he does)
         m.rotation.set(0, npc.yaw - Math.PI / 2 - TURN, 0);
       }

@@ -29,6 +29,9 @@ export const IN_CITY = {
   fallen: [17, 26],
   /** The treasury's door (on its north face, onto the main street). */
   treasuryDoor: [46, -7.5],
+  /** The table at the back of the treasury where the plates are kept, and how high its top is. */
+  table: [46, -22.15],
+  tableTop: 0.95,
 };
 
 /** City-local (cu, cv) to (u, v). */

@@ -131,6 +131,8 @@ export function forestAt(x, z) {
 
 /** The level the city is built at, and how it rises towards its east end, set once from the land under it. */
 let cityLevel = null;
+/** The level Lehi's house and court are built at. */
+let lehiLevel = null;
 
 function land(x, z) {
   const h = wildLand(x, z);
@@ -138,10 +140,18 @@ function land(x, z) {
   const v = -x * DZ + z * DX;
   // inside the walls the ground is made level for building, and it eases back into the hill outside them
   const d = cityDistance(u, v);
-  if (d > 40) return h;
-  cityLevel ??= wildLand(...fromValley(CITY.at[0], CITY.at[1]));
-  const level = cityLevel + (u - CITY.at[0]) * 0.03;
-  return h + (level - h) * (1 - smooth(4, 40, d));
+  if (d <= 40) {
+    cityLevel ??= wildLand(...fromValley(CITY.at[0], CITY.at[1]));
+    const level = cityLevel + (u - CITY.at[0]) * 0.03;
+    return h + (level - h) * (1 - smooth(4, 40, d));
+  }
+  // Lehi's house and its court stand on made ground too, so its door is at the ground and not sunk in the slope
+  const lu = Math.max(Math.abs(u - LEHI_HOUSE[0]) - 11, 0);
+  const lv = Math.max(Math.abs(v - (LEHI_HOUSE[1] - 1)) - 13, 0);
+  const l = Math.hypot(lu, lv);
+  if (l > 28) return h;
+  lehiLevel ??= wildLand(...fromValley(LEHI_HOUSE[0], LEHI_HOUSE[1]));
+  return h + (lehiLevel - h) * (1 - smooth(0, 28, l));
 }
 
 function wildLand(x, z) {

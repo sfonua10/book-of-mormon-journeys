@@ -31,6 +31,7 @@ uniform vec4 uCut;     // bare (0; 1 one shoulder and both arms; 2 to the waist)
 uniform float uCuffs;  // 0; 1 leather guards on the forearms; 2 gold at the wrist and the upper arm; 3 a band at the wrist
 uniform float uEdge;   // a hanging cloth's hem: 0 a band of trim; 1 raw and uneven; 2 a border of scales; 3 fur
 uniform vec2 uRobe;    // long sleeves to the wrist (0 or 1), an open V at the neck (0 or 1)
+uniform float uArmour; // 0; 1 a coat of bronze scales over the body, from the belt to the shoulders
 uniform vec3 uPal[12]; // [in the light, in the shade] of: skin, the belt, the belt's bands, leather, gold, the robe
 layout(location = 0) out vec4 outC;
 // (each of those paints its own line number, so where it meets another there is an inked edge, as a garment has)
@@ -108,6 +109,18 @@ void main() {
     litPaint = uPal[r * 2];
     shadePaint = uPal[r * 2 + 1];
     ink = PAL_INK[r];
+  }
+  if (uArmour > 0.5 && r < 0 && uPart > 0.5 && uPart < 1.5 && vBind.y > 1.0 && vBind.y < 1.53 && abs(vBind.x) < 0.235) {
+    // a coat of scales: small leaves of bronze sewn in rows, each row lapping the one under it
+    vec2 q = vec2(atan(vBind.x, vBind.z) / 6.2832 * 30.0, (vBind.y - 1.0) * 24.0);
+    q.x += 0.5 * floor(q.y);
+    float d = length(fract(q) - vec2(0.5, 0.95));
+    // (drawn only as near as a painter would draw them: further off it is one bronze)
+    float fine = 1.0 - smoothstep(0.25, 0.7, fwidth(q.y));
+    float rim = smoothstep(0.4, 0.46, d) * (1.0 - smoothstep(0.56, 0.62, d)) * fine;
+    litPaint = mix(uPal[8] * vec3(0.88, 0.72, 0.52), uPal[8] * vec3(0.42, 0.34, 0.28), rim);
+    shadePaint = mix(uPal[9] * vec3(0.9, 0.82, 0.76), uPal[9] * vec3(0.5, 0.44, 0.44), rim);
+    ink = 0.06;
   }
   if (uInside > 0.5) {
     if (uEdge < 0.5) {
@@ -201,8 +214,9 @@ void main() {
 //   sleeves: long wide sleeves, to the wrist and open there
 //   neck: 'v' for an open V at the neck
 //   blade: a blade in its sheath at the belt, this long (0: none; about 0.2 a dagger, 0.75 a sword)
+//   armour: a coat of bronze scales over the body (the gold's paint, deepened)
 /** A long robe and a mantle, a head cloth: Laban, his servants, Zoram, the angel. */
-export const ROBE = { head: 'cloth', cloak: true, hem: 0.13, edge: 0, bare: 0, belt: 0, cuffs: 0, lace: 0, blade: 0, sleeves: false, neck: '' };
+export const ROBE = { head: 'cloth', cloak: true, hem: 0.13, edge: 0, bare: 0, belt: 0, cuffs: 0, lace: 0, blade: 0, sleeves: false, neck: '', armour: false };
 
 // What he wears: [in the light, in the shade], as paint. The shade is a colour of its own, cooler and deeper, not
 // the light one made darker.
@@ -287,6 +301,7 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
   const cut = { value: new THREE.Vector4() };
   const cuffs = { value: 0 };
   const robe = { value: new THREE.Vector2() };
+  const armour = { value: 0 };
   const over = { value: Array.from({ length: OVER.length * 2 }, () => new THREE.Color()) };
   const painted = [];
   const paint = (upper, { skinned = false, lower = upper, split = -10, inside = 0, part = 0, edge = 0 } = {}) => {
@@ -310,6 +325,7 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
         uEdge: { value: edge },
         uPal: over,
         uRobe: robe,
+        uArmour: armour,
       },
       vertexShader: skinned ? skinnedVertex : plainVertex,
       fragmentShader: fragment,
@@ -458,6 +474,7 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
     cut.value.set(o.bare, o.hem, o.lace, o.belt);
     cuffs.value = o.cuffs;
     robe.value.set(o.sleeves ? 1 : 0, o.neck === 'v' ? 1 : 0);
+    armour.value = o.armour ? 1 : 0;
     for (const sleeve of sleeves) sleeve.visible = !!o.sleeves;
     cloth.visible = o.head === 'cloth';
     band.visible = o.head === 'band';

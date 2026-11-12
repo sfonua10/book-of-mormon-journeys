@@ -1,6 +1,8 @@
 // Plays the whole story with the autopilot (?auto), headless, the clock stepped by hand, and fails unless it reaches
 // the end. A still is taken as each beat begins.
 //   node tools/story.mjs [--beat a2] [--out shots/story] [--limit 2400] [--size 1280x720] [--shots]
+//     [--query "hold&wrong"]  (more for the page's address: ?hold is overtaken in the chase once before it
+//     leaves the property; ?wrong answers Zoram wrongly once each time)
 import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
@@ -33,7 +35,7 @@ const server = createServer((req, res) => {
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const beat = flag('beat', '');
 const snaps = new Set((flag('snap', '') || '').split(',').filter(Boolean));
-const url = `http://127.0.0.1:${server.address().port}/?step&auto&nosound&dpr=1&quality=${flag('quality', 'low')}${beat ? `&beat=${beat}` : ''}${snaps.size ? '&autoread=1.2' : ''}`;
+const url = `http://127.0.0.1:${server.address().port}/?step&auto&nosound&dpr=1&quality=${flag('quality', 'low')}${beat ? `&beat=${beat}` : ''}${snaps.size ? '&autoread=1.2' : ''}${flag('query', '') ? `&${flag('query', '')}` : ''}`;
 const browser = await chromium.launch({
   executablePath: process.env.CHROME,
   headless: true,

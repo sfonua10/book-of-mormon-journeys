@@ -68,6 +68,9 @@ function makeCrickets(ctx, seconds = 8) {
 export function createSounds(base = './audio/') {
   let ctx = null;
   let master = null;
+  // the ambiences go through one gain of their own, so the story can still them all (hush)
+  let ambience = null;
+  let hushed = 0;
   const steps = [];
   const buffers = {};
   const loops = {};
@@ -92,6 +95,8 @@ export function createSounds(base = './audio/') {
         master = ctx.createGain();
         master.gain.value = 0.8;
         master.connect(ctx.destination);
+        ambience = ctx.createGain();
+        ambience.connect(master);
         await Promise.all(
           names.map(async (name) => {
             try {
@@ -124,11 +129,22 @@ export function createSounds(base = './audio/') {
         source.loop = true;
         const gain = ctx.createGain();
         gain.gain.value = 0;
-        source.connect(gain).connect(master);
+        source.connect(gain).connect(ambience);
         // (not all from their first second, or every visit begins the same)
         source.start(0, Math.random() * source.buffer.duration);
         loops[name] = gain;
       }
+    },
+    /** The sound's own clock and its way out, for the story's music (music.js); null where there is no sound. */
+    get context() {
+      return ctx;
+    },
+    get out() {
+      return master;
+    },
+    /** Stills the land's own sounds (1) or gives them back (0), over a second or so. */
+    hush(amount) {
+      hushed = amount;
     },
     /** One footfall, 0 to 1 loud. Never the same recording twice running. */
     step(volume) {
@@ -153,6 +169,7 @@ export function createSounds(base = './audio/') {
     update(dt, here) {
       if (!begun) return;
       const ease = Math.min(1, dt * 1.6);
+      ambience.gain.value += (1 - hushed - ambience.gain.value) * ease;
       const to = (name, value) => {
         if (loops[name]) loops[name].gain.value += (value - loops[name].gain.value) * ease;
       };

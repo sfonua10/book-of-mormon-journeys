@@ -17,7 +17,7 @@ const CSS = /* css */ `
 #g-card {
   left: 50%; bottom: 7vh; transform: translate(-50%, 12px); width: min(760px, calc(100vw - 32px)); box-sizing: border-box;
   padding: 22px 28px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-  color: var(--ink); opacity: 0; transition: opacity 0.35s, transform 0.35s; z-index: 7;
+  color: var(--ink); opacity: 0; transition: opacity 0.35s, transform 0.35s; z-index: 9;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
 }
 #g-card.on { opacity: 1; transform: translate(-50%, 0); }
@@ -25,13 +25,36 @@ const CSS = /* css */ `
 #g-card.thought .text { font-style: italic; font-size: 18px; color: #efe4cc; }
 #g-card .ref { margin-top: 10px; text-align: right; color: var(--gold); font-size: 14px; letter-spacing: 0.08em; font-variant: small-caps; }
 #g-card .hint { margin-top: 8px; text-align: center; font-size: 12px; letter-spacing: 0.1em; opacity: 0.55; }
+#g-card .answers { margin-top: 14px; display: grid; gap: 8px; }
+#g-card .answer {
+  padding: 9px 14px; border: 1px solid var(--line); border-radius: 4px; font-size: 17px; line-height: 1.4; opacity: 0.72;
+  pointer-events: auto; cursor: pointer; transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+}
+#g-card .answer.at { opacity: 1; border-color: var(--gold); background: rgba(227, 189, 109, 0.14); }
+#g-card .answer b { color: var(--gold); font-weight: normal; margin-right: 10px; }
 #g-card .who { color: var(--gold); font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
 #g-objective {
-  left: 24px; top: 22px; max-width: min(420px, calc(100vw - 48px)); color: #fff; font-size: 16px; letter-spacing: 0.03em;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6); opacity: 0; transition: opacity 0.5s;
+  left: 20px; top: 20px; width: max-content; max-width: min(460px, calc(100vw - 40px)); box-sizing: border-box;
+  padding: 11px 20px 13px 16px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--gold);
+  border-radius: 6px; color: #fff; box-shadow: 0 6px 26px rgba(0, 0, 0, 0.32); transform-origin: left top;
+  opacity: 0; transform: translateX(-12px); transition: opacity 0.5s, transform 0.5s;
 }
-#g-objective.on { opacity: 1; }
-#g-objective::before { content: '◆'; color: var(--gold); margin-right: 9px; font-size: 12px; vertical-align: 2px; }
+#g-objective.on { opacity: 1; transform: none; }
+#g-objective .label { color: var(--gold); font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; margin-bottom: 4px; }
+#g-objective .text { font-size: 20px; line-height: 1.35; letter-spacing: 0.01em; }
+#g-objective ul { list-style: none; margin: 10px 0 1px; padding: 9px 0 0; border-top: 1px solid var(--line); display: grid; gap: 5px; font-size: 17px; }
+#g-objective li { display: flex; align-items: baseline; gap: 10px; }
+#g-objective li::before { content: '◇'; color: var(--gold); width: 1em; text-align: center; }
+#g-objective li.done { color: rgba(244, 234, 214, 0.62); }
+#g-objective li.done::before { content: '✓'; }
+/* a new thing to do draws the eye once: the panel swells and glows, and settles */
+#g-objective.new { animation: g-new 1.8s ease-out; }
+@keyframes g-new {
+  0% { transform: scale(1.1); background: rgba(104, 76, 28, 0.92); box-shadow: 0 0 0 0 rgba(227, 189, 109, 0.85), 0 6px 26px rgba(0, 0, 0, 0.32); }
+  35% { transform: scale(1.04); box-shadow: 0 0 0 14px rgba(227, 189, 109, 0), 0 6px 26px rgba(0, 0, 0, 0.32); }
+  100% { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { #g-objective.new { animation: none; } }
 #g-prompt {
   left: 50%; bottom: 16vh; transform: translateX(-50%); color: #fff; font-size: 18px; letter-spacing: 0.05em;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); opacity: 0; transition: opacity 0.25s; white-space: nowrap;
@@ -84,7 +107,13 @@ const CSS = /* css */ `
 .g-screen a { color: var(--gold); }
 .g-screen blockquote { margin: 18px auto; font-style: italic; font-size: 18px; line-height: 1.55; }
 .g-screen blockquote cite { display: block; font-style: normal; margin-top: 6px; color: var(--gold); font-size: 14px; font-variant: small-caps; }
-@media (max-width: 600px) { #g-card .text { font-size: 17px; } #g-card { padding: 16px 18px 12px; } }
+@media (max-width: 600px) {
+  #g-card .text { font-size: 17px; }
+  #g-card { padding: 16px 18px 12px; }
+  #g-objective { left: 12px; top: 12px; max-width: calc(100vw - 24px); }
+  #g-objective .text { font-size: 17px; }
+  #g-objective ul { font-size: 15px; }
+}
 `;
 
 const el = (tag, id, cls = '') => {
@@ -102,6 +131,7 @@ export function createUI() {
   const still = el('div', 'g-still');
   const fade = el('div', 'g-fade');
   const objective = el('div', 'g-objective');
+  objective.setAttribute('role', 'status');
   const prompt = el('div', 'g-prompt');
   const toast = el('div', 'g-toast');
   const marker = el('div', 'g-marker');
@@ -112,21 +142,41 @@ export function createUI() {
   const title = el('div', 'g-title', 'g-screen');
   const end = el('div', 'g-end', 'g-screen');
   let toastTimer = 0;
+  let objectiveText = null;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
   return {
     card: {
-      /** Shows a card: scripture with its reference, or a thought (italic, no reference). */
-      show({ text, ref = '', who = '', kind = ref ? 'scripture' : 'thought', hint = 'E or click to continue' }) {
+      /**
+       * Shows a card: scripture with its reference, or a thought (italic, no reference). With `answers` it asks: they
+       * are listed under it, the one at `at` lit, and `onPick(i)` is told if one is clicked.
+       */
+      show({ text, ref = '', who = '', kind = ref ? 'scripture' : 'thought', hint = 'E or click to continue', answers = null, at = 0, onPick = null }) {
         card.className = `g-layer on ${kind}`;
-        card.innerHTML = `${who ? `<div class="who">${esc(who)}</div>` : ''}<div class="text">${esc(text)}</div>${ref ? `<div class="ref">${esc(ref)}</div>` : ''}<div class="hint">${esc(hint)}</div>`;
+        const list = answers ? `<div class="answers">${answers.map((a, i) => `<div class="answer${i === at ? ' at' : ''}" data-i="${i}"><b>${i + 1}</b>${esc(a)}</div>`).join('')}</div>` : '';
+        card.innerHTML = `${who ? `<div class="who">${esc(who)}</div>` : ''}<div class="text">${esc(text)}</div>${list}${ref ? `<div class="ref">${esc(ref)}</div>` : ''}<div class="hint">${esc(hint)}</div>`;
+        for (const a of card.querySelectorAll('.answer')) a.addEventListener('click', () => onPick?.(Number(a.dataset.i)));
       },
       hide() {
         card.classList.remove('on');
       },
     },
-    objective(text) {
-      if (text) objective.textContent = text;
+    /**
+     * What to do now, in a panel at the top left: a line, and under it a list of [{ label, done }] if the thing has
+     * parts. Null takes it away. A new line draws the eye once; a list that only changes does not.
+     */
+    objective(text, list = null) {
+      if (text) {
+        const items = list ? `<ul>${list.map((i) => `<li class="${i.done ? 'done' : ''}">${esc(i.label)}</li>`).join('')}</ul>` : '';
+        objective.innerHTML = `<div class="label">What to do</div><div class="text">${esc(text)}</div>${items}`;
+        if (text !== objectiveText) {
+          objective.classList.remove('new');
+          // (reading its width starts the animation again from the beginning)
+          void objective.offsetWidth;
+          objective.classList.add('new');
+        }
+      }
+      objectiveText = text || null;
       objective.classList.toggle('on', !!text);
     },
     prompt(label) {

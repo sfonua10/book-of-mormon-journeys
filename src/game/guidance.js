@@ -1,9 +1,11 @@
 // "And I was led by the Spirit, not knowing beforehand the things which I should do." (1 Nephi 4:6)
 // In the night act there is no marker and no line saying where to go. When Nephi stands still, a soft light gathers
 // in the air a little way along the way he should go, lighting the ground under it, and the edges of the picture
-// warm; walking on quietly it stays faint, and running it is lost. If he wanders from the way it comes back to him,
-// and if he is a long while getting nowhere he is reminded to stand still and look. The ground's light is the
-// field's one carried light (field.setLamp), coloured gold-white instead of fire; the light in the air is a halo.
+// warm; walking on quietly it stays faint, and running it is lost. So is it by a wrong turning: off the way there
+// is no light at all while he walks, and only when he stands still does it come back to him. If he is a long while
+// getting nowhere he is reminded to stand still and look. A soft tone gathers and fades with the light (music.js),
+// so the leading can be listened for as well as looked for. The ground's light is the field's one carried light
+// (field.setLamp), coloured gold-white instead of fire; the light in the air is a halo.
 import { createHalo } from './halo.js';
 
 /** The point `ahead` metres further along a line of points than the point on it nearest (x, z). */
@@ -59,12 +61,17 @@ export function createGuidance(g, ui) {
   let furthest = 0;
   let stuck = 0;
   let sinceHint = Infinity;
+  let hints = true;
   return {
     shine(x, z, strength) {
       shine = x == null ? null : { x, z, strength };
     },
-    /** Starts leading along a line of points [[x, z], ...]; null to stop. */
-    lead(points) {
+    /**
+     * Starts leading along a line of points [[x, z], ...]; null to stop. `hint: false` where he is not to be told to
+     * stand and look (he is not lost: he waits).
+     */
+    lead(points, { hint = true } = {}) {
+      hints = hint;
       route = points;
       still = 0;
       furthest = 0;
@@ -91,9 +98,11 @@ export function createGuidance(g, ui) {
         if (speed < 0.35) still += dt;
         else if (speed < 2.2) still = Math.max(0.5, still - dt * 0.4);
         else still = Math.max(0, still - dt * 3);
-        const want = Math.min(1, Math.max(speed < 2.2 ? 0.3 : 0, (still - 0.5) / 1.6));
-        light += (want - light) * Math.min(1, dt * 2.2);
         const p = pointAhead(route, g.player.x, g.player.z, 11);
+        // (the little that a quiet walk keeps is kept only on the way: a street's width to either side of it)
+        const kept = speed < 2.2 && p.off < 5.5 ? 0.3 : 0;
+        const want = Math.min(1, Math.max(kept, (still - 0.5) / 1.6));
+        light += (want - light) * Math.min(1, dt * 2.2);
         if (p.off > 7) {
           // away from the way: the light comes back towards him, between him and the nearest of it
           const k = Math.min(1, 8 / p.off);
@@ -106,7 +115,7 @@ export function createGuidance(g, ui) {
           stuck = 0;
         } else stuck += dt;
         sinceHint += dt;
-        if (stuck > 25 && sinceHint > 45 && !g.frozen) {
+        if (hints && stuck > 25 && sinceHint > 45 && !g.frozen) {
           sinceHint = 0;
           ui.toast('Stand still a moment, and look around you for the light.', '', 7);
         }
@@ -117,6 +126,7 @@ export function createGuidance(g, ui) {
       }
       const pulse = 0.9 + 0.1 * Math.sin(g.clock() * 1.3);
       orb?.update(g.clock());
+      g.music?.spirit(shine ? 0 : light);
       if (shine) {
         orb?.set(0, 0, 0, 0);
         g.field.setLamp(shine.x, g.heightAt(shine.x, shine.z) + 1.4, shine.z, shine.strength);

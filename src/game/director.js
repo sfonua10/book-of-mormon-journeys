@@ -32,6 +32,8 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15 } =
   let time = 0;
   const waits = [];
   let pressed = false;
+  /** The key last pressed, for a card that asks for a choice; taken up by whoever reads it. */
+  let key = null;
   let current = null;
   /** Where the story wants Nephi to go: { x, z, r } or null. The autopilot walks there. */
   let goal = null;
@@ -41,7 +43,9 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15 } =
 
   const confirmKeys = new Set(['KeyE', 'Enter', 'Space', 'NumpadEnter']);
   addEventListener('keydown', (e) => {
-    if (confirmKeys.has(e.code) && !e.repeat) pressed = true;
+    if (e.repeat) return;
+    if (confirmKeys.has(e.code)) pressed = true;
+    key = e.code;
   });
   g.canvas.addEventListener('mousedown', (e) => {
     if (e.button === 0 && document.pointerLockElement === g.canvas) pressed = true;
@@ -81,39 +85,89 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15 } =
     },
     thought: (text, options = {}) => c.card(text, '', { kind: 'thought', ...options }),
     toast: (text, ref, seconds) => ui.toast(text, ref, seconds),
-    objective: (text) => ui.objective(text),
+    /** The line saying what to do (null to take it away), and under it a list of [{ label, done }] if there is one. */
+    objective: (text, list) => ui.objective(text, list),
     /**
      * Waits for Nephi to come within r of (x, z). `via` is the way there, a few points (through the gate, along the
      * streets): the marker shows the next of them, and the autopilot walks them. `mark: false` for no marker.
+     * `unless` is asked each frame: when it says so the wait is given up. Resolves true if he got there.
      */
-    async reach(x, z, r = 4, { via = [], mark = true } = {}) {
+    async reach(x, z, r = 4, { via = [], mark = true, unless = null } = {}) {
       const stops = [...via.map(([px, pz]) => ({ x: px, z: pz, r: 3.5 })), { x, z, r }];
       let k = 0;
+      let there = false;
       await until(() => {
         // (skip on to the furthest stop he is already near)
         for (let j = stops.length - 1; j > k; j--) if (near(stops[j].x, stops[j].z, stops[j].r)) k = j;
         while (k < stops.length - 1 && near(stops[k].x, stops[k].z, stops[k].r)) k++;
         goal = { ...stops[k], mark };
-        return near(x, z, r);
+        there = near(x, z, r);
+        return there || !!unless?.();
       });
       goal = null;
+      return there;
     },
-    /** Waits for Nephi to act (E) within r of (x, z), showing the prompt while he is near. */
-    async act(x, z, r, label) {
-      goal = { x, z, r: r * 0.7, mark: true };
+    /**
+     * Waits for Nephi to act (E) within r of (x, z), showing the prompt while he is near. `unless` is asked each
+     * frame: when it says so the wait is given up. Resolves true if he acted.
+     */
+    async act(x, z, r, label, { mark = true, unless = null } = {}) {
+      goal = { x, z, r: r * 0.7, mark };
       interactable = { x, z, r, label };
       pressed = false;
+      let acted = false;
       await until(() => {
         const close = near(x, z, r) && !frozen;
         ui.prompt(close ? label : null);
-        if (close && (pressed || auto)) return true;
+        if (close && (pressed || auto)) return (acted = true);
         if (!close) pressed = false;
-        return false;
+        return !!unless?.();
       });
       pressed = false;
       ui.prompt(null);
       interactable = null;
       goal = null;
+      return acted;
+    },
+    /** A prompt for something he can do wherever he stands (null to take it away); `pressed` says if he has. */
+    prompt: (label) => ui.prompt(label),
+    get pressed() {
+      return pressed && !frozen;
+    },
+    /**
+     * A card that asks, with a few answers under it: W and S (or the arrows) go between them, E takes one; or 1, 2.
+     * Resolves with the number of the answer taken. The autopilot takes `auto`.
+     */
+    async choice(text, answers, { auto: autoPick = 0, who = '' } = {}) {
+      frozen++;
+      pressed = false;
+      key = null;
+      let at = 0;
+      let picked = -1;
+      const show = () => ui.card.show({ text, who, kind: 'thought', answers, at, hint: 'W and S to choose · E to answer', onPick: (i) => (picked = i) });
+      show();
+      const shown = time;
+      await until(() => {
+        const k = key;
+        key = null;
+        if (auto) return time - shown > autoRead && ((at = autoPick), true);
+        if (picked >= 0) return ((at = picked), true);
+        if (time - shown < 0.45) return false;
+        const digit = /^(Digit|Numpad)([1-9])$/.exec(k ?? '');
+        if (digit && Number(digit[2]) <= answers.length) return ((at = Number(digit[2]) - 1), true);
+        const step = k === 'KeyS' || k === 'ArrowDown' ? 1 : k === 'KeyW' || k === 'ArrowUp' ? -1 : 0;
+        if (step) {
+          at = (at + step + answers.length) % answers.length;
+          show();
+        }
+        // (a click takes the answer that is lit, as E does)
+        return pressed;
+      });
+      pressed = false;
+      ui.card.hide();
+      frozen--;
+      await c.wait(0.25);
+      return at;
     },
     /** To black (1) or back (0), over some seconds, and waits for it. */
     async fade(to, seconds = 1) {
@@ -200,6 +254,7 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15 } =
         }
       }
       pressed = false;
+      key = null;
     },
   };
 }
