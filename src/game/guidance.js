@@ -46,7 +46,12 @@ export function createGuidance(g, ui) {
   let light = 0;
   let px = 0;
   let pz = 0;
+  /** A light the story sets itself (the angel's): { x, z, strength } or null. */
+  let shine = null;
   return {
+    shine(x, z, strength) {
+      shine = x == null ? null : { x, z, strength };
+    },
     /** Starts leading along a line of points [[x, z], ...]; null to stop. */
     lead(points) {
       route = points;
@@ -81,6 +86,11 @@ export function createGuidance(g, ui) {
         pz += (p.z - pz) * (Math.hypot(p.x - px, p.z - pz) > 30 ? 1 : k);
       }
       const pulse = 0.9 + 0.1 * Math.sin(g.clock() * 1.3);
+      if (shine) {
+        g.field.setLamp(shine.x, g.heightAt(shine.x, shine.z) + 1.4, shine.z, shine.strength);
+        g.field.uniforms.uFireColor.value.setRGB(1.6, 1.5, 1.2);
+        return;
+      }
       g.field.setLamp(px, g.heightAt(px, pz) + 0.9, pz, light * 7 * pulse);
       if (light > 0.001) g.field.uniforms.uFireColor.value.setRGB(1.55, 1.32, 0.92);
       ui.still(light * 0.85);

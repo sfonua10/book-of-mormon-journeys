@@ -84,7 +84,8 @@ const offThread = (message, here) =>
       fallback();
     }
   });
-const quality = params.get('quality') ?? 'high';
+// (medium unless asked: high is for a strong graphics card; Patch's own setting is honoured where it is given)
+const quality = params.get('quality') ?? window.patch?.quality ?? 'medium';
 const EXTENT = 1280;
 const GROUND = { extent: EXTENT, extentRes: EXTENT, centre: [0, 0] };
 const FLOOR_SIZE = quality === 'low' ? 1024 : 1536;
@@ -799,17 +800,47 @@ const g = {
   },
   /** A fixed view: from [x, z, metres above the ground] to [x, z, metres above]; null to give the eye back. */
   view(v) {
+    // (when the shot ends, the eye behind Nephi takes up the way it looked)
+    if (!v && cinematic) follow.yaw = Math.atan2(cinematic.target.x - cinematic.position.x, cinematic.target.z - cinematic.position.z);
     cinematic = v && {
       position: new THREE.Vector3(v.from[0], field.heightAt(v.from[0], v.from[1]) + v.from[2], v.from[1]),
       target: new THREE.Vector3(v.to[0], field.heightAt(v.to[0], v.to[1]) + v.to[2], v.to[1]),
     };
+  },
+  /**
+   * Over Nephi's shoulder at a point [x, z]: the first of a few places for the eye (behind him, to either side,
+   * higher) from which both he and it can be seen, with no wall in the way.
+   */
+  shoulder([tx, tz], { back = 3.4, side = 1.1, up = 2.1, look = 1.3 } = {}) {
+    const d = Math.hypot(tx - player.x, tz - player.z) || 1;
+    const fx = (tx - player.x) / d;
+    const fz = (tz - player.z) / d;
+    const target = new THREE.Vector3(tx, field.heightAt(tx, tz) + look, tz);
+    const head = new THREE.Vector3(player.x, player.y + 1.5, player.z);
+    const clear = (from, to) => {
+      const dir = to.clone().sub(from);
+      const far = dir.length();
+      const hit = walker.castRay(from, dir.normalize(), far);
+      return hit == null || hit > far - 0.4;
+    };
+    const tries = [[back, side, up], [back, -side, up], [back * 0.7, side * 1.6, up], [back * 0.7, -side * 1.6, up], [back * 0.55, side * 0.6, up + 1.4], [back * 0.4, -side * 0.5, up + 2.2], [-0.5, side * 3, up], [-0.5, -side * 3, up], [0, side * 2, up + 3]];
+    for (const [b, s, u] of tries) {
+      const x = player.x - fx * b + fz * s;
+      const z = player.z - fz * b - fx * s;
+      const from = new THREE.Vector3(x, field.heightAt(x, z) + u, z);
+      if (clear(from, head) && clear(from, target)) {
+        cinematic = { position: from, target };
+        return;
+      }
+    }
+    // (nowhere clear: leave the eye as it is)
   },
   get guidance() {
     return guidance;
   },
 };
 guidance = createGuidance(g, ui);
-director = createDirector(story(g), ui, g, { auto: g.auto });
+director = createDirector(story(g), ui, g, { auto: g.auto, autoRead: params.has('autoread') ? Number(params.get('autoread')) : 0.15 });
 
 // for tests and filming: everything the page is made of, and a clock to drive by hand
 window.__tg = { sounds, walker, follow, input, wanderer, animator, setThird, standAt, pickTime, timings, view: null, wind, THREE, renderer, scene, camera, field, frame, sky, trees, farWoods, stones, player, keys, tick, setHour, setWind, fromValley, director, cast, props, city, g, ready: true };

@@ -1,19 +1,19 @@
 {
-	"project": "blendi/painted-valley",
-	"version": "1.1.1",
-	"channel": "private",
-	"files": "dist",
-	"recipe": {
-		"mode": "browser",
-		"test": {
-			"move_keys": [
-				"KeyW"
-			]
-		},
-		"block": {
-			"controls": [],
-			"presets": [],
-			"triggers": []
-		}
-	}
+  "project": "your-patch-name/i-will-go-and-do",
+  "version": "0.1.0",
+  "channel": "private",
+  "files": "dist",
+  "recipe": {
+    "mode": "browser",
+    "test": {
+      "move_keys": [
+        "KeyW"
+      ]
+    },
+    "block": {
+      "controls": [],
+      "presets": [],
+      "triggers": []
+    }
+  }
 }

@@ -28,7 +28,7 @@ const save = (id) => {
  * @param g the game: player, standAt, setHour, cast, ... (see main.js)
  * @param options.auto play itself
  */
-export function createDirector(beats, ui, g, { auto = false } = {}) {
+export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15 } = {}) {
   let time = 0;
   const waits = [];
   let pressed = false;
@@ -69,7 +69,7 @@ export function createDirector(beats, ui, g, { auto = false } = {}) {
       pressed = false;
       ui.card.show({ text, ref, ...options });
       const shown = time;
-      await until(() => time - shown > (auto ? 0.15 : 0.45) && (pressed || auto));
+      await until(() => time - shown > (auto ? autoRead : 0.45) && (pressed || auto));
       pressed = false;
       ui.card.hide();
       frozen--;

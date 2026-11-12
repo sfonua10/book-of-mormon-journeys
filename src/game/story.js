@@ -91,6 +91,8 @@ export function story(g) {
     who('laman').follow(g.player, 3.6, -1.4);
     who('lemuel').follow(g.player, 4.6, 1.6);
   }
+  /** Over Nephi's shoulder, at someone or something: a still view while the cards about it are read. */
+  const shoulder = (point, options) => g.shoulder(point, options);
   const nearest = (names) => names.map(who).sort((a, b) => Math.hypot(a.x - g.player.x, a.z - g.player.z) - Math.hypot(b.x - g.player.x, b.z - g.player.z))[0];
   function reset({ hour, stand, face, clothes = 'nephi' }) {
     g.cast.clear();
@@ -138,11 +140,11 @@ export function story(g) {
         const laman = who('laman');
         for (const n of ['sam', 'lemuel']) who(n).stop().face(...gateIn);
         // the lot fell upon Laman: he goes in alone
-        await c.hold(laman.walk([P(GATE[0] - 6, -1), gateIn, C(-40, 1)], 1.6));
+        await c.hold(laman.walk([P(GATE[0] - 6, -1), gateIn, C(-58, 0.5)], 2.0));
         laman.show(false);
         await c.verse('3:12', '3:13');
         // and comes back out, fast
-        laman.place(...C(-40, 0), yawTo(C(-40, 0), gateIn));
+        laman.place(...C(-55, 0), yawTo(C(-55, 0), gateIn));
         await c.hold(laman.walk([gateIn, P(GATE[0] - 8, 0), [g.player.x + 2.5, g.player.z + 1]], 5));
         laman.face(...me());
         await c.verse('3:14');
@@ -191,20 +193,23 @@ export function story(g) {
       id: 'a2-laban',
       label: 'Act Two',
       setup() {
-        reset({ hour: 18.9, stand: C(16, 27), face: labanGate });
-        brothersAt(C(14, 24), labanGate);
+        reset({ hour: 18.9, stand: C(19.2, 25.5), face: labanGate });
+        brothersAt(C(18.4, 22), labanGate);
       },
       async run(c) {
         c.objective(null);
         for (const n of ['laman', 'lemuel', 'sam']) who(n).stop().face(...labanGate);
-        const laban = who('laban').place(...C(24.5, 30.5), -Math.PI / 2);
+        // Laban comes out to them in the street, his servants in the gateway behind him
+        const laban = who('laban').place(...C(20.6, 30.5), -Math.PI / 2);
         laban.face(...me());
-        const s1 = who('servant1').place(...C(27, 27), 0);
-        const s2 = who('servant2').place(...C(27, 34), Math.PI);
+        const s1 = who('servant1').place(...C(23.2, 29.2), 0);
+        const s2 = who('servant2').place(...C(23.2, 31.8), Math.PI);
         s1.face(...me());
         s2.face(...me());
+        shoulder(at(laban));
         await c.verse('3:24');
         await c.verse('3:25');
+        g.view(null);
         // they run: the brothers ahead, out of the gate and away; the servants after Nephi
         c.objective('Flee from the servants of Laban! Out of the city, into the wilderness.');
         const away = [C(18, 1), C(-30, 0), gateIn, gateOut, P(200, 90), P(ROCK[0] + 8, ROCK[1] - 6)];
@@ -241,16 +246,36 @@ export function story(g) {
         g.ui.fade(0.55, 0.8);
         await c.verse('3:28');
         // the angel
-        const angel = who('angel').place(...P(ROCK[0] + 7, ROCK[1] - 1), yawTo(P(ROCK[0] + 7, ROCK[1] - 1), hollow));
+        const stands = P(ROCK[0] + 9, ROCK[1] - 2);
+        const angel = who('angel').place(...stands, yawTo(stands, hollow));
         angel.w.glow.value = 0;
         g.ui.fade(0, 0.6);
-        await c.hold(c.until(() => (angel.w.glow.value = Math.min(0.85, angel.w.glow.value + 0.02)) >= 0.85));
-        for (const n of ['laman', 'lemuel', 'sam']) who(n).face(...at(angel));
-        g.view({ from: [...lerp(hollow, at(angel), -0.25), 2.2], to: [...at(angel), 1.6] });
+        for (const n of ['laman', 'lemuel', 'sam']) who(n).face(...stands);
+        // a low view from beside the brothers, up at him, with the light round him on the ground
+        const side = lerp(stands, hollow, 0.62);
+        const [ax, az] = [stands[0] - hollow[0], stands[1] - hollow[1]];
+        g.view({ from: [side[0] + az * 0.28, side[1] - ax * 0.28, 1.0], to: [...stands, 0.9] });
+        let bright = 0;
+        await c.hold(
+          c.until(() => {
+            bright = Math.min(1, bright + 0.015);
+            angel.w.glow.value = 0.85 * bright;
+            g.guidance.shine(...stands, 9 * bright);
+            return bright >= 1;
+          }),
+        );
         await c.verse('3:29');
         await c.verse('3:30');
+        await c.hold(
+          c.until(() => {
+            bright = Math.max(0, bright - 0.02);
+            angel.w.glow.value = 0.85 + (1 - bright) * 0.8;
+            g.guidance.shine(...stands, 9 * bright);
+            return bright <= 0;
+          }),
+        );
+        g.guidance.shine(null);
         g.view(null);
-        await c.hold(c.until(() => (angel.w.glow.value = Math.min(1.6, angel.w.glow.value + 0.03)) >= 1.6));
         angel.show(false);
         for (const n of ['laman', 'lemuel', 'sam']) who(n).face(...me());
         await c.verse('3:31');
@@ -301,8 +326,10 @@ export function story(g) {
         who('zoram').place(...beforeTreasury, Math.PI).face(...C(IN_CITY.treasuryDoor[0] - 6, 0));
       },
       async run(c) {
+        shoulder(fallen, { back: 4.5, up: 2.8, look: 0.3 });
         await c.verse('4:7');
         await c.verse('4:8');
+        g.view(null);
         await c.verse('4:9');
         await c.verse('4:10');
         await c.verse('4:11');
@@ -335,8 +362,10 @@ export function story(g) {
       },
       async run(c) {
         const zoram = who('zoram').face(...me());
+        shoulder(at(zoram));
         await c.verse('4:20');
         await c.verse('4:21');
+        g.view(null);
         await c.verse('4:22', '4:23');
         await c.verse('4:24');
         // he fetches the plates from the treasury
@@ -379,7 +408,7 @@ export function story(g) {
         const back = P(GATE[0] - 13, 30);
         brothersAt(back, me());
         // and Zoram, seeing them, makes for the city
-        zoram.stop().walk([P(GATE[0] - 12, 6), gateOut, gateIn], 2.3);
+        zoram.stop().walk([P(GATE[0] - 12, 6), P(GATE[0] - 16, 1)], 2.1);
         await c.verse('4:30');
         c.objective('Hold Zoram, that he should not flee.');
         await c.until(() => {
@@ -389,12 +418,14 @@ export function story(g) {
         c.lead(null);
         c.objective(null);
         zoram.stop().face(...me());
+        shoulder(at(zoram), { back: 2.8, side: 0.9, up: 1.9, look: 1.5 });
         await c.verse('4:31');
         await c.verse('4:32');
         await c.verse('4:33');
         await c.verse('4:34');
         await c.verse('4:35');
         await c.verse('4:37');
+        g.view(null);
         await c.verse('4:38');
         await c.fade(1, 2);
       },

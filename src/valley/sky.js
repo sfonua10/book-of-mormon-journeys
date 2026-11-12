@@ -101,10 +101,10 @@ const NIGHT = {
   fog: [0.035, 0.05, 0.11],
   fogSun: [0.08, 0.11, 0.2],
   haze: 0.00024,
-  cloudLit: [0.3, 0.36, 0.52],
-  cloudMid: [0.12, 0.16, 0.27],
-  cloudShade: [0.05, 0.07, 0.14],
-  cloudUnder: [0.03, 0.05, 0.1],
+  cloudLit: [0.15, 0.18, 0.28],
+  cloudMid: [0.065, 0.085, 0.15],
+  cloudShade: [0.03, 0.04, 0.085],
+  cloudUnder: [0.02, 0.03, 0.065],
   exposure: 1.35,
 };
 /** From this hour on it is night. */

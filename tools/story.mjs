@@ -32,7 +32,8 @@ const server = createServer((req, res) => {
 });
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const beat = flag('beat', '');
-const url = `http://127.0.0.1:${server.address().port}/?step&auto&nosound&dpr=1&quality=${flag('quality', 'low')}${beat ? `&beat=${beat}` : ''}`;
+const snaps = new Set((flag('snap', '') || '').split(',').filter(Boolean));
+const url = `http://127.0.0.1:${server.address().port}/?step&auto&nosound&dpr=1&quality=${flag('quality', 'low')}${beat ? `&beat=${beat}` : ''}${snaps.size ? '&autoread=1.2' : ''}`;
 const browser = await chromium.launch({
   executablePath: process.env.CHROME,
   headless: true,
@@ -66,17 +67,34 @@ let lastBeat = null;
 let ended = false;
 while (simulated < limit) {
   // a few seconds of story at a time, at 30 frames a second
-  const state = await page.evaluate(async () => {
+  const state = await page.evaluate(async (wanted) => {
     const tg = window.__tg;
+    const cards = [];
     for (let i = 0; i < 90; i++) {
       tg.tick(1 / 30);
       // (let the story's promises run between frames)
       await new Promise((r) => setTimeout(r, 0));
+      // a card wanted for a still: stop here, with it on the screen
+      const ref = document.querySelector('#g-card.on .ref')?.textContent;
+      if (ref && wanted.some((w) => ref.includes(w))) {
+        cards.push(ref);
+        break;
+      }
     }
     const d = tg.director;
-    return { beat: d.beat, ended: d.ended, x: tg.player.x, z: tg.player.z, goal: d.goal, frozen: d.frozen, hour: tg.sky.hour };
-  });
+    return { cards, beat: d.beat, ended: d.ended, x: tg.player.x, z: tg.player.z, goal: d.goal, frozen: d.frozen, hour: tg.sky.hour };
+  }, [...snaps]);
   simulated += 3;
+  for (const ref of state.cards) {
+    const key = [...snaps].find((s) => ref && ref.includes(s));
+    if (key) {
+      snaps.delete(key);
+      // (the card's own fade, in real time)
+      await page.evaluate(() => new Promise((r) => setTimeout(r, 450)));
+      await page.screenshot({ path: join(out, `card-${key.replace(':', '_')}.png`) });
+      console.log(`snapped ${key}`);
+    }
+  }
   if (state.beat !== lastBeat) {
     lastBeat = state.beat;
     console.log(`${simulated.toFixed(0).padStart(5)} s  beat ${state.beat}  at (${state.x.toFixed(0)}, ${state.z.toFixed(0)})  hour ${state.hour}`);

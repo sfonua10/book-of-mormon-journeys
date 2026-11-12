@@ -1,4 +1,18 @@
-# Licence notes: painted valley
+# Licence notes
+
+*I Will Go and Do* is a remix of Patch's **Painted valley** block (`blendi/painted-valley` 1.1.1, MIT code, CC0 art). The table below is Painted valley's own, kept as it was, with the rows for what this game adds or changes first.
+
+## What this game adds or changes
+
+| Part | Where it came from | Licence | In this repo? |
+|---|---|---|---|
+| `src/game/` (the story, the city, the cast, the director, the cards, the leading light) | Written for this game | MIT; what it draws CC0 | Yes |
+| `src/game/scripture.js` (1 Nephi 3–5) | The Book of Mormon, Project Gutenberg eBook #17, generated from its text | Public domain | Yes |
+| Changes in `src/valley/` and `src/lib/` (the hill country, its palette, the night, the head cloth, the made sounds) | Edits for this game to Painted valley's files | MIT | Yes |
+| `lib/patch-block.js` | **Replaced** by a short stand-in written for this game; Patch's own helper is not carried | MIT | Yes |
+| `public/figure/*.glb`, `public/textures/*` | As below, fetched from Painted valley's repository and checked against their LFS checksums. Kept in plain Git here, not LFS | As below | Yes |
+
+## Painted valley's own notes
 
 Code MIT. Art in this repo CC0 1.0. Checked 2026-11-11.
 
