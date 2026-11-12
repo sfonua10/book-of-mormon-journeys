@@ -3,6 +3,11 @@
 // country from the files beside this one. On Patch the page is a block's demo, and talks to the block's page
 // through lib/patch-block.js.
 import { patchBlock } from 'patch-block';
+import { Animator } from '../figure/animator.js';
+import { Follow } from '../figure/camera.js';
+import { Input } from '../figure/input.js';
+import { Player as Walker } from '../figure/player.js';
+import RAPIER from '../figure/rapier/rapier.mjs';
 import * as THREE from 'three';
 import { bakeGround, createField, createFrame, loadGroundTextures } from '../lib/index.js';
 import { createFluff, createStones } from './dressing.js';
@@ -13,6 +18,7 @@ import { createSky, createSkyParts, SUNSET } from './sky.js';
 import { createSounds } from './sounds.js';
 import { createStrokes } from './strokes.js';
 import { createTrees } from './trees.js';
+import { createWanderer } from './wanderer.js';
 import { createTarn } from './water.js';
 import { fromValley, heightAt, HERO, paint, START, tarnDistance } from './world.js';
 
@@ -139,6 +145,9 @@ const field = createField({
   seed: 3,
 });
 scene.add(field.group);
+// (the wanderer is the biggest thing to fetch: asked for now, he arrives while the rest is made)
+const wandererComing = createWanderer(field);
+const physicsComing = RAPIER.init();
 mark('field');
 field.uniforms.tFloor.value = createFloor(renderer, FLOOR_SIZE, (await floorJob).pixels);
 mark('floorPaint');
@@ -299,6 +308,11 @@ function updatePlayer(dt) {
       player.onGround = true;
     }
   }
+  tread(dt, true);
+}
+
+/** What walking does to the meadow and, for a walker with no feet to be seen, what it sounds like. */
+function tread(dt, heard) {
   const pace = Math.hypot(player.vx, player.vz);
   const moved = pace * dt;
   if (player.onGround && moved > 0) {
@@ -314,12 +328,160 @@ function updatePlayer(dt) {
     if (player.walked > (pace > 5 ? 1.2 : 0.95)) {
       player.walked = 0;
       player.foot = -player.foot;
-      sounds.step(pace > 5 ? 0.42 : 0.28);
+      if (heard) sounds.step(pace > 5 ? 0.42 : 0.28);
     }
     player.bob += moved * (Math.PI / 0.95);
   }
   player.dip *= Math.exp(-dt * 9);
   field.setPusher(0, player.x, player.y + 0.2, player.z, 0.17);
+}
+
+// ---- the wanderer: the same walk, seen from behind him --------------------------------------------------------
+await physicsComing;
+const physics = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+{
+  // the ground under him: the meadow's own heights a metre apart, as far as the walk goes, with the trees and the
+  // big stones standing on it
+  const half = REACH + 40;
+  const cells = 2 * half;
+  const heights = new Float32Array((cells + 1) * (cells + 1));
+  for (let col = 0; col <= cells; col++) {
+    for (let row = 0; row <= cells; row++) heights[row + col * (cells + 1)] = field.heightAt(-half + col, -half + row);
+  }
+  physics.createCollider(RAPIER.ColliderDesc.heightfield(cells, cells, heights, { x: 2 * half, y: 1, z: 2 * half }));
+  for (const [sx, sz, gap] of stones.solid) physics.createCollider(RAPIER.ColliderDesc.cylinder(1, gap * 0.75).setTranslation(sx, field.heightAt(sx, sz), sz));
+  for (const [tx, tz, kind, scale] of trees.trees) {
+    if (kind > 3) break;
+    physics.createCollider(RAPIER.ColliderDesc.cylinder(4, (kind === 0 ? 0.85 : 0.4) * scale).setTranslation(tx, field.heightAt(tx, tz) + 3, tz));
+  }
+}
+const wanderer = await wandererComing;
+scene.add(wanderer.group);
+const animator = new Animator(wanderer.man);
+const walker = new Walker({ RAPIER, world: physics, man: wanderer.man, animator, spawn: new THREE.Vector3(player.x, player.y, player.z), yaw: player.yaw + Math.PI });
+const follow = new Follow(camera);
+const input = new Input(canvas, { pads: !stepped && !params.has('nopad') });
+physics.step();
+// V goes between the two walks; ?view=first begins in your own eyes
+let third = params.get('view') !== 'first';
+const UP = new THREE.Vector3(0, 1, 0);
+const local = new THREE.Vector3();
+const gaze = new THREE.Vector3();
+const held = new THREE.Vector3();
+const footUp = { l: false, r: false };
+let sinceStep = 0;
+
+/** Stands him at a place, facing a way (his yaw: 0 looks along +z), still. */
+function standAt(x, z, yaw) {
+  const y = field.heightAt(x, z);
+  walker.body.setTranslation({ x, y: y + walker.t.radius + walker.halfHeight() + 0.05, z }, true);
+  physics.propagateModifiedBodyPositionsToColliders();
+  walker.feet.set(x, y, z);
+  walker.prevFeet.copy(walker.feet);
+  walker.visualY = y;
+  walker.vel.set(0, 0, 0);
+  walker.speed = 0;
+  walker.mode = 'move';
+  walker.grounded = true;
+  walker.yaw = walker.lastYaw = yaw;
+  animator.lock = null;
+  animator.lockOff = null;
+  animator.enter(animator.locoState({ strafe: false }), 0.05);
+}
+
+/** Third person or first. Either way you are where you were, looking where you looked. */
+function setThird(on) {
+  third = on;
+  wanderer.group.visible = on;
+  camera.fov = on ? 52 : 68;
+  camera.updateProjectionMatrix();
+  if (on) {
+    standAt(player.x, player.z, player.yaw + Math.PI);
+    follow.yaw = player.yaw + Math.PI;
+    follow.pitch = Math.min(0.5, Math.max(-0.3, 0.02 - player.pitch));
+    follow.pivot.set(0, 0, 0);
+    follow.distance = follow.want;
+  } else {
+    player.vx = player.vz = 0;
+    field.uniforms.uWalker.value.w = 0;
+  }
+}
+
+/** The wind where the cloak is: the valley's, in gusts. */
+function air(x, y, z, out) {
+  const cx = Math.cos(wind.angle);
+  const cz = Math.sin(wind.angle);
+  const along = x * cx + z * cz;
+  const gust = 0.5 + 0.5 * Math.sin((along - clock * 5) / 9) * Math.sin(clock * 0.37 + z / 23);
+  const speed = wind.speed * (0.25 + 0.75 * gust * gust);
+  return out.set(cx * speed, 0.2 * Math.sin(clock * 2.3 + x) * gust, cz * speed);
+}
+
+function updateWanderer(dt) {
+  const inp = input.read(dt);
+  held.copy(walker.feet);
+  const bodyWas = walker.body.translation();
+  walker.update(dt, inp, follow.yaw);
+  // the tarn's edge and the end of the walk are as far as he goes
+  const f = walker.feet;
+  if ((tarnDistance(f.x, f.z) < 0.88 && tarnDistance(f.x, f.z) < tarnDistance(held.x, held.z)) || (Math.hypot(f.x, f.z) > REACH && Math.hypot(f.x, f.z) > Math.hypot(held.x, held.z))) {
+    walker.body.setTranslation(bodyWas, true);
+    physics.propagateModifiedBodyPositionsToColliders();
+    walker.feet.copy(held);
+    walker.speed *= 0.5;
+  }
+  const at = walker.visualRoot(dt);
+  const man = wanderer.man.object;
+  man.position.copy(at);
+  man.rotation.set(0, walker.yaw, 0);
+  man.updateMatrixWorld(true);
+  const onGround = walker.grounded && walker.mode !== 'jump' && walker.mode !== 'air';
+  local.copy(walker.vel).applyAxisAngle(UP, -walker.yaw);
+  animator.update(dt, { speed: walker.mode === 'move' ? walker.speed : Math.hypot(local.x, local.z), moveAngle: walker.moveAngle, grounded: walker.grounded });
+  animator.relaxHands(walker.speed);
+  animator.uprightTrunk(dt, walker.speed, onGround ? 1 : 0.3);
+  const looking = walker.mode === 'move' || walker.mode === 'idleExtra' ? Math.min(1, Math.max(0, 1 - (walker.speed - 1.5) / 2)) : 0;
+  animator.lookToward(dt, camera.getWorldDirection(gaze), looking);
+  animator.armClearance(dt);
+  if (walker.mode === 'move' && !walker.strafe) animator.leanInto(dt, walker.turnRate, walker.speed, walker.accelF);
+  else animator.leanInto(dt, 0, 0, 0);
+  animator.placeFeet(dt, (x, z, from) => walker.ground(x, z, from, 1.4), at.y, onGround ? 1 : 0);
+  man.updateMatrixWorld(true);
+  // a step is heard when a foot of his comes down, and at no other time: louder the faster he goes
+  // (a foot has landed when its ankle, having swung clear of the ground, is back down by it)
+  sinceStep += dt;
+  for (const side of ['l', 'r']) {
+    const lift = animator.bones[`foot_${side}`].getWorldPosition(gaze).y - at.y;
+    if (lift > 0.2) footUp[side] = true;
+    else if (lift < 0.125 && footUp[side]) {
+      footUp[side] = false;
+      if (onGround && walker.speed > 0.5 && sinceStep > 0.15) {
+        sounds.step(walker.speed > 6 ? 0.42 : walker.speed > 3 ? 0.32 : 0.22);
+        sinceStep = 0;
+      }
+    }
+  }
+  wanderer.update(dt, air, field.heightAt);
+
+  // the valley knows the walker by where he stands: the grass under him, the sounds round him
+  const landed = onGround && !player.onGround;
+  Object.assign(player, { x: at.x, y: at.y, z: at.z, vx: walker.vel.x, vz: walker.vel.z, onGround });
+  if (landed) {
+    field.bend(player.x, player.z, 0.55, 0, 0, 0.7);
+    sounds.step(0.7);
+  }
+  tread(dt, false);
+  // his shadow: longer as the sun comes down
+  const flat = Math.hypot(sky.sunDir.x, sky.sunDir.z);
+  field.uniforms.uWalker.value.set(at.x, at.z, 0.72, Math.min(9, (1.75 * flat) / Math.max(0.05, sky.sunDir.y)));
+
+  if (!window.__tg?.view) {
+    follow.update(dt, at, inp.look, inp.zoom, () => null, (x, z) => field.heightAt(x, z) + 0.5);
+    camera.updateMatrixWorld();
+    // (should you step into your own eyes, you look the way the camera did)
+    player.yaw = follow.yaw - Math.PI;
+    player.pitch = -follow.pitch;
+  }
 }
 
 function placeCamera() {
@@ -335,6 +497,7 @@ function placeCamera() {
     camera.updateMatrixWorld();
     return;
   }
+  if (third) return;
   const pace = Math.min(1, Math.hypot(player.vx, player.vz) / RUN);
   const bob = player.onGround ? Math.sin(player.bob) * 0.022 * pace : 0;
   camera.position.set(player.x, player.y + EYE + bob - player.dip, player.z);
@@ -398,6 +561,10 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'Comma') setHour(sky.hour - 0.25);
   if (e.code === 'Period') setHour(sky.hour + 0.25);
   if (e.code === 'KeyP') frame.paint = frame.paint ? 0 : paintWas;
+  if (e.code === 'KeyV') {
+    setThird(!third);
+    note(third ? 'Third person' : 'First person');
+  }
   if (e.code === 'Space') e.preventDefault();
 });
 document.addEventListener('keyup', (e) => keys.delete(e.code));
@@ -426,7 +593,11 @@ function gpuDone() {
 
 // ---- the loop ------------------------------------------------------------------------------------------------
 function tick(dt) {
-  updatePlayer(dt);
+  if (third) updateWanderer(dt);
+  else {
+    input.read(dt);
+    updatePlayer(dt);
+  }
   placeCamera();
   field.update(dt, camera);
   farWoods.update(dt, wind.speed);
@@ -462,6 +633,8 @@ mark('skyWait');
 await stage(0.64, 'Painting the clouds');
 setHour(hour0);
 setWind(params.has('wind') ? Number(params.get('wind')) : 4.5);
+setThird(third);
+if (third) updateWanderer(1 / 60);
 placeCamera();
 field.update(0, camera);
 sky.update(0, camera);
@@ -476,13 +649,16 @@ await stage(0.9, 'Warming up');
 {
   const [x0, z0] = [player.x, player.z];
   keys.add('KeyW');
+  input.keys.add('KeyW');
   for (let i = 0; i < 44; i++) {
     tick(1 / 30);
     await gpuDone();
     if (i % 11 === 10) await stage(0.9 + 0.08 * (i / 44), 'Warming up');
   }
   keys.clear();
-  Object.assign(player, { x: x0, z: z0, vx: 0, vz: 0, walked: 0, stride: 0, bob: 0 });
+  input.keys.clear();
+  Object.assign(player, { x: x0, z: z0, vx: 0, vz: 0, walked: 0, stride: 0, bob: 0, yaw: Math.atan2(-HERO[0], -HERO[1]), pitch: 0.04 });
+  if (third) setThird(true);
   field.reset();
   clock = 0;
   setHour(params.has('hour') ? Number(params.get('hour')) : 15.5);
@@ -492,7 +668,7 @@ await stage(0.9, 'Warming up');
 mark('warm');
 
 // for tests and filming: everything the page is made of, and a clock to drive by hand
-window.__tg = { pickTime, timings, view: null, wind, THREE, renderer, scene, camera, field, frame, sky, trees, farWoods, stones, player, keys, tick, setHour, setWind, fromValley, ready: true };
+window.__tg = { sounds, walker, follow, input, wanderer, animator, setThird, standAt, pickTime, timings, view: null, wind, THREE, renderer, scene, camera, field, frame, sky, trees, farWoods, stones, player, keys, tick, setHour, setWind, fromValley, ready: true };
 
 // ---- the loop's switch ----------------------------------------------------------------------------------------
 let last = 0;

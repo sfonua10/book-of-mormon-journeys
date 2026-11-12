@@ -547,10 +547,31 @@ export function createFrame(renderer, field, { samples = 4, fireScale = 0.5, blo
       vec3 o = sum / total;
       return o / (1.0 - min(o, vec3(0.985)));
     }
+    // The inked line round a figure. A figure's parts each write a small alpha of their own (valley/wanderer.js),
+    // smaller than anything else writes; where one of those meets a different alpha, there is a line.
+    float inkAt(vec2 uv) {
+      float a = textureLod(tHdr, uv, 0.0).a;
+      float da = textureLod(tDepth, uv, 0.0).r;
+      vec2 w = uPaintTexel * max(1.0, 1.0 / (uPaintTexel.y * 1080.0));
+      float e = 0.0;
+      for (int k = 0; k < 4; k++) {
+        vec2 o = k == 0 ? vec2(1.0, 0.0) : k == 1 ? vec2(-1.0, 0.0) : k == 2 ? vec2(0.0, 1.0) : vec2(0.0, -1.0);
+        float b = textureLod(tHdr, uv + o * w, 0.0).a;
+        if (min(a, b) >= 0.23) continue;
+        // (a line where the figure stands in front of something, or one of its parts meets another: none where a
+        // blade of grass stands in front of it, or every blade would be inked)
+        float db = textureLod(tDepth, uv + o * w, 0.0).r;
+        if (max(a, b) >= 0.23 && (a < b ? db < da : da < db)) continue;
+        e = max(e, abs(a - b));
+      }
+      return smoothstep(0.008, 0.022, e);
+    }
     vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
     vec3 toSrgb(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
     void main() {
       vec3 c = (uPaint > 0.5 ? painted(vUv) : texture(tHdr, vUv).rgb) + texture(tBloom, vUv).rgb * uBloom;
+      // (the line is the colour under it, gone dark and a little warm: never a black wire)
+      c = mix(c, min(c, vec3(1.2)) * vec3(0.2, 0.14, 0.15), inkAt(vUv) * 0.92);
       vec2 d = vUv - 0.5;
       c *= 1.0 - uVignette * dot(d, d) * 1.6;
       c *= uExposure;

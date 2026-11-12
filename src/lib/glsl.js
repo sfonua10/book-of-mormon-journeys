@@ -41,6 +41,7 @@ uniform sampler2D tStrokes;    // brushwork: tone in red (half is none), stones 
 uniform vec4 uFloor;
 uniform float uFloorInv;
 uniform float uCloudShade;   // how dark a cloud's shadow is, 0 for none
+uniform vec4 uWalker;        // someone walking in the open: x, z, how dark their shadow, how long (0 for nobody)
 uniform vec4 uLamp;          // a flame carried through the field: where it is, how bright (0 for none)
 
 // The carried flame's light at p, in the same measure as tGlow's.
@@ -105,8 +106,8 @@ float gustAt(vec2 xz) {
   return smoothstep(0.26, 0.78, g);
 }
 
-// 1 in the open, less under a cloud. The clouds drift with the wind, slowly.
-float cloudAt(vec2 xz) {
+// 1 in the open, less under a cloud or a tree. The clouds drift with the wind, slowly.
+float openAt(vec2 xz) {
   // (summer cumulus: shadows the size of fields, crossing the valley at the wind's pace)
   vec2 p = (xz - uWindScroll * 2.6) / 3400.0;
   float c = texture(tNoiseHi, p).b * 0.7 + texture(tNoiseHi, p * 2.7 + 0.19).a * 0.3;
@@ -120,6 +121,24 @@ float cloudAt(vec2 xz) {
     open *= 1.0 - tree * (0.88 - 0.8 * spot);
   }
   return open;
+}
+
+// The shadow of someone walking: a body's width, lying away from the sun as long as the hour makes it, with the
+// clean edge a painted shadow has.
+float walkerShade(vec2 xz) {
+  if (uWalker.w <= 0.0) return 1.0;
+  vec2 d = xz - uWalker.xy;
+  vec2 away = -normalize(uSunDir.xz + vec2(1e-5));
+  float along = clamp(dot(d, away), 0.0, uWalker.w);
+  float r = length(d - away * along);
+  // (narrower towards the head)
+  float wide = mix(0.36, 0.2, along / uWalker.w);
+  return 1.0 - uWalker.z * (1.0 - smoothstep(wide, wide + 0.1, r));
+}
+
+// What the ground gets of the sun: the open sky, less anyone's shadow.
+float cloudAt(vec2 xz) {
+  return openAt(xz) * walkerShade(xz);
 }
 
 // Distance haze, warmer towards the sun.

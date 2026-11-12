@@ -155,6 +155,7 @@ export function createField({
     uFloor: { value: new THREE.Vector4(1, 0, 0, 0) },
     uFloorInv: { value: 0 },
     uLamp: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uWalker: { value: new THREE.Vector4(0, 0, 0, 0) },
   };
 
   const group = new THREE.Group();
