@@ -4,7 +4,8 @@
 // Their shade is baked into a map the grass reads, with moving spots of light let through it.
 import * as THREE from 'three';
 import { COMMON } from '../lib/index.js';
-import { fromValley, heightAt, pathDistance, riverDistance, TARN, tarnDistance, TREE } from './world.js';
+import { keepClear } from '../game/places.js';
+import { fromValley, heightAt, pathDistance, riverDistance, TARN, tarnDistance, toValley, TREE } from './world.js';
 
 const TAU = Math.PI * 2;
 const V3 = THREE.Vector3;
@@ -276,14 +277,15 @@ void main() {
   // (from far off a crown is its lobes, not its leaves: the brush gets broader)
   float fine = mix(1.0, 0.25, smoothstep(14.0, 90.0, dist));
   tone = tone * mix(0.5, 1.0, vRand.z) + ((vRand.x - 0.5) * 0.36 + (leaf.r / max(leaf.g, 0.05) - 0.75) * 0.5) * fine;
-  vec3 col = mix(vec3(0.014, 0.1, 0.1), vec3(0.035, 0.2, 0.12), smoothstep(0.3, 0.42, tone));
-  col = mix(col, vec3(0.1, 0.36, 0.12), smoothstep(0.56, 0.68, tone));
-  col = mix(col, vec3(0.3, 0.56, 0.15), smoothstep(0.84, 0.92, tone));
+  // (olive leaves: dark grey-green, silvered where the light is on them)
+  vec3 col = mix(vec3(0.04, 0.07, 0.065), vec3(0.11, 0.16, 0.12), smoothstep(0.3, 0.42, tone));
+  col = mix(col, vec3(0.25, 0.31, 0.21), smoothstep(0.56, 0.68, tone));
+  col = mix(col, vec3(0.5, 0.55, 0.4), smoothstep(0.84, 0.92, tone));
   float cloud = cloudAt(vWorld.xz + uSunDir.xz * 30.0);
   vec3 light = uSkyColor * 0.9 + uSunColor * (0.2 + 0.16 * smoothstep(0.5, 0.9, tone)) * mix(0.45, 1.0, clamp((cloud - 0.5) * 2.0, 0.0, 1.0));
   // seen against the sun, leaves glow
   float through = pow(max(dot(-V, uSunDir), 0.0), 2.0);
-  col = col * light + vec3(0.3, 0.5, 0.05) * uSunColor * through * (0.05 + 0.24 * vRand.x * vRand.x);
+  col = col * light + vec3(0.3, 0.4, 0.12) * uSunColor * through * (0.05 + 0.24 * vRand.x * vRand.x);
   outC = vec4(applyFog(col, vWorld), a);
 }
 `;
@@ -307,8 +309,8 @@ void main() {
   // lit as the sprays on it are, a tone deeper: it is the inside of the crown
   float tone = dot(N, uSunDir) * 0.5 + 0.5;
   tone = tone * mix(0.5, 1.0, vRand.z) + (n - 0.5) * 0.36 - 0.04;
-  vec3 col = mix(vec3(0.014, 0.1, 0.1), vec3(0.035, 0.19, 0.115), smoothstep(0.3, 0.42, tone));
-  col = mix(col, vec3(0.09, 0.33, 0.11), smoothstep(0.58, 0.7, tone));
+  vec3 col = mix(vec3(0.04, 0.07, 0.065), vec3(0.1, 0.15, 0.115), smoothstep(0.3, 0.42, tone));
+  col = mix(col, vec3(0.22, 0.28, 0.19), smoothstep(0.58, 0.7, tone));
   float cloud = cloudAt(vWorld.xz + uSunDir.xz * 30.0);
   col *= uSkyColor * 0.9 + uSunColor * (0.2 + 0.14 * smoothstep(0.5, 0.9, tone)) * mix(0.45, 1.0, clamp((cloud - 0.5) * 2.0, 0.0, 1.0));
   outC = vec4(applyFog(col, vWorld), 1.0);
@@ -345,7 +347,7 @@ void main() {
   vec3 col = mix(vec3(0.085, 0.062, 0.05), vec3(0.2, 0.16, 0.125), smoothstep(0.3, 0.7, stroke));
   col = mix(col, vec3(0.24, 0.23, 0.2), smoothstep(0.55, 0.75, patchy) * 0.6);
   float moss = smoothstep(0.45, 0.7, patchy * 0.6 + N.y * 0.5 - dot(N, uSunDir) * 0.2 + 0.25) * 0.75;
-  col = mix(col, vec3(0.06, 0.13, 0.035), moss);
+  col = mix(col, vec3(0.2, 0.2, 0.15), moss * 0.6);
   // it stands in its own shade: light reaches it in spots
   float spot = smoothstep(0.56, 0.7, texture(tNoise, vec2(vBark.x * 1.7, vBark.y * 0.21) + uTime * vec2(0.011, 0.007)).b);
   float sun = smoothstep(-0.15, 0.6, dot(N, uSunDir)) * mix(0.1, 1.0, spot);
@@ -359,7 +361,7 @@ function plant() {
   const random = mulberry(20);
   const trees = [[TREE[0], TREE[1], 0, 1, 2.4]];
   const clear = (x, z, gap) => {
-    if (tarnDistance(x, z) < 1.75 || pathDistance(x, z) < 6) return false;
+    if (tarnDistance(x, z) < 1.75 || pathDistance(x, z) < 6 || keepClear(...toValley(x, z), 4)) return false;
     for (const t of trees) if (Math.hypot(t[0] - x, t[1] - z) < gap * (t[2] === 0 ? 5 : 1)) return false;
     return true;
   };
@@ -464,7 +466,7 @@ export function createTrees(field, { cards = 1 } = {}) {
   {
     const random = mulberry(313);
     const bush = (x, z, scale) => {
-      if (pathDistance(x, z) < 2.4 || tarnDistance(x, z) < 0.9) return;
+      if (pathDistance(x, z) < 2.4 || tarnDistance(x, z) < 0.9 || keepClear(...toValley(x, z))) return;
       if (Math.hypot(x - TREE[0], z - TREE[1]) < 9) return;
       trees.push([x, z, BUSH + (random() < 0.5 ? 0 : 1), scale, random() * TAU]);
     };

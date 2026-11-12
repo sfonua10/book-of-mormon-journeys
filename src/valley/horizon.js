@@ -71,7 +71,7 @@ void main() {
 
   // forest floor: dark under the trees that stand on it, its edge ragged
   float forest = smoothstep(0.38, 0.62, far4.r + (c.r - 0.5) * 0.34 + (e.g - 0.5) * 0.2);
-  col = mix(col, mix(vec3(0.03, 0.14, 0.07), vec3(0.06, 0.2, 0.08), e.b), forest);
+  col = mix(col, mix(vec3(0.1, 0.13, 0.09), vec3(0.17, 0.2, 0.14), e.b), forest);
 
   float sun = max(dot(N, uSunDir), 0.0);
   // (green land seen from far off is lit a little from every side)
@@ -88,7 +88,8 @@ void main() {
   far = mix(far, vec3(0.62, 0.6, 0.48) * (uSunColor * 0.35 * cloud + uSkyColor * 0.5), (1.0 - smoothstep(width + 2.0, width + 9.0, rd)) * step(0.55, b.r) * 0.8);
   vec3 R = reflect(-V, vec3(0.0, 1.0, 0.0));
   vec3 mirror = mix(uFogColor * 1.08, uSkyColor * 1.45, smoothstep(0.0, 0.5, R.y)) + uSunColor * pow(max(dot(R, uSunDir), 0.0), 90.0) * 0.5;
-  far = mix(far, mirror, water);
+  // (in these hills it is a dry watercourse: pale stones, not water)
+  far = mix(far, vec3(0.7, 0.64, 0.52) * (uSunColor * 0.35 * cloud + uSkyColor * 0.5), water * 0.7);
 
   vec3 outCol = mix(near, far, smoothstep(650.0, 1400.0, dist));
   outC = vec4(applyFog(outCol, vWorld), mix(1.0, 0.4, smoothstep(520.0, 700.0, dist)));

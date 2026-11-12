@@ -2,7 +2,8 @@
 // wind made visible, as seed fluff and petals carried past on the gusts.
 import * as THREE from 'three';
 import { COMMON } from '../lib/index.js';
-import { fromValley, heightAt, pathDistance, tarnDistance } from './world.js';
+import { keepClear, ROCK, ROCK_STONES } from '../game/places.js';
+import { fromValley, heightAt, pathDistance, tarnDistance, toValley } from './world.js';
 
 const TAU = Math.PI * 2;
 
@@ -122,16 +123,17 @@ void main() {
   // light and shade as two paints with a narrow turn; under a tree or a cloud it is all in shade
   float open = cloudAt(vWorld.xz);
   float lit = smoothstep(0.02, 0.2, dot(N, uSunDir) + (n1 - 0.5) * 0.28) * smoothstep(0.42, 0.78, open);
-  vec3 light = mix(vec3(0.36, 0.35, 0.33), vec3(0.54, 0.51, 0.45), n2 * 0.6 + n1 * 0.4);
-  vec3 shade = mix(vec3(0.27, 0.3, 0.3), vec3(0.36, 0.38, 0.37), n2);
+  // (pale limestone)
+  vec3 light = mix(vec3(0.52, 0.48, 0.4), vec3(0.74, 0.69, 0.58), n2 * 0.6 + n1 * 0.4);
+  vec3 shade = mix(vec3(0.32, 0.32, 0.31), vec3(0.42, 0.42, 0.4), n2);
   // lichen where it looks at the sky, moss low down
   float lichen = smoothstep(0.52, 0.66, N.y * 0.45 + n1 * 0.7);
-  light = mix(light, vec3(0.42, 0.47, 0.2), lichen * 0.75);
-  shade = mix(shade, vec3(0.09, 0.19, 0.12), lichen * 0.75);
+  light = mix(light, vec3(0.56, 0.54, 0.4), lichen * 0.5);
+  shade = mix(shade, vec3(0.24, 0.26, 0.2), lichen * 0.5);
   vec3 col = mix(shade * (uSkyColor * 1.25 + dot(uSkyColor, vec3(0.08))), light * (uSunColor * 0.36 + uSkyColor * 0.4), lit);
   // it stands in grass: green comes up it, and its foot is dark
   float foot = 1.0 - smoothstep(0.0, 0.45, vWorld.y - groundAt(vWorld.xz));
-  col = mix(col, vec3(0.03, 0.1, 0.035) * (uSkyColor + uSunColor * 0.25 * open), foot * 0.7);
+  col = mix(col, vec3(0.12, 0.1, 0.06) * (uSkyColor + uSunColor * 0.25 * open), foot * 0.6);
   outC = vec4(applyFog(col, vWorld), 1.0);
 }
 `;
@@ -152,11 +154,16 @@ export function createStones(field) {
       const a = random() * TAU;
       const d = spread * Math.sqrt(random());
       const [x, z] = fromValley(u + Math.cos(a) * d, v + Math.sin(a) * d);
-      if (pathDistance(x, z) < 1.7 || tarnDistance(x, z) < 1.12) continue;
+      if (pathDistance(x, z) < 1.7 || tarnDistance(x, z) < 1.12 || keepClear(...toValley(x, z))) continue;
       // one or two big ones to a group, the rest small
       const size = i < 2 ? 0.7 + 0.9 * random() : 0.2 + 0.45 * random();
       stones.push([x, z, size, random() * TAU, Math.floor(random() * 3), 0.7 + 0.5 * random(), (random() - 0.5) * 0.3]);
     }
+  }
+  // the rock the brothers hide in: great boulders round a hollow
+  for (const [du, dv, size, tall] of ROCK_STONES) {
+    const [x, z] = fromValley(ROCK[0] + du, ROCK[1] + dv);
+    stones.push([x, z, size, random() * TAU, Math.floor(random() * 3), tall, (random() - 0.5) * 0.2]);
   }
   const group = new THREE.Group();
   const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: stoneVertex, fragmentShader: stoneFragment, uniforms: field.uniforms });

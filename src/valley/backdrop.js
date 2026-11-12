@@ -392,6 +392,8 @@ void main() {
   float deep = smoothstep(2.6, 5.4, alt + (streak - 0.5) * 0.9 + 0.3 * noise(p.xz * 0.45 + 2.0));
   float snow = max(step(fract(f1.y * 7.31 + f1.w * 3.7), deep * 0.62) * (1.0 - 0.85 * smoothstep(0.5, 0.78, crag)), smoothstep(0.93, 1.0, deep));
   snow = max(snow, step(fract(f2.z * 5.17 + f2.w * 2.3), deep * 0.12)) * (1.0 - wooded) * step(0.02, deep);
+  // (no snow on the hills of Judah and Moab)
+  snow = 0.0;
 
   // rock: cream and warm grey in the light; out of it grey-green, not blue
   vec3 light = mix(vec3(0.38, 0.34, 0.26), vec3(0.68, 0.62, 0.47), tone);
@@ -411,9 +413,9 @@ void main() {
   float s2 = noise(vec2(dot(p.xz, vec2(0.96, -0.28)) * 2.2, dot(p.xz, vec2(0.28, 0.96)) * 17.0) + 5.0);
   float round_ = noise(vec2((alt + 0.08 * v1) * 24.0, v2 * 2.0));
   float v = v1 * 0.34 + v2 * 0.2 + s1 * 0.2 + s2 * 0.12 + round_ * 0.14;
-  vec3 grassL = mix(vec3(0.17, 0.46, 0.14), vec3(0.27, 0.57, 0.13), smoothstep(0.36, 0.5, v));
-  grassL = mix(grassL, vec3(0.42, 0.66, 0.15), smoothstep(0.54, 0.66, v));
-  vec3 grassS = mix(vec3(0.08, 0.31, 0.16), vec3(0.13, 0.42, 0.17), smoothstep(0.36, 0.6, v));
+  vec3 grassL = mix(vec3(0.42, 0.36, 0.2), vec3(0.58, 0.48, 0.26), smoothstep(0.36, 0.5, v));
+  grassL = mix(grassL, vec3(0.72, 0.6, 0.34), smoothstep(0.54, 0.66, v));
+  vec3 grassS = mix(vec3(0.2, 0.21, 0.17), vec3(0.32, 0.31, 0.24), smoothstep(0.36, 0.6, v));
   // fields: each a tone of its own, a darker strip under the hedge along most of their edges
   float farmed = farmAt(p.xz) * (1.0 - smoothstep(0.2, 0.4, 1.0 - Nb.y));
   vec3 fld = fieldOf(p.xz);
@@ -422,13 +424,13 @@ void main() {
   grassL = mix(grassL, grassL * tint, farmed);
   grassS = mix(grassS, grassS * mix(vec3(1.0), tint, 0.6), farmed);
   float hedge = (1.0 - smoothstep(0.02, 0.05, fld.x)) * step(0.3, hash(fld.yz + 8.2)) * farmed;
-  grassL = mix(grassL, vec3(0.07, 0.27, 0.11), hedge * 0.8);
-  grassS = mix(grassS, vec3(0.04, 0.17, 0.11), hedge * 0.8);
+  grassL = mix(grassL, vec3(0.3, 0.33, 0.22), hedge * 0.8);
+  grassS = mix(grassS, vec3(0.16, 0.18, 0.15), hedge * 0.8);
   // paths: pale, winding, here and gone
   float way = 1.0 - smoothstep(0.004, 0.008, abs(noise(p.xz * 0.5 + 7.0) - 0.5));
   way = max(way, (1.0 - smoothstep(0.004, 0.0075, abs(noise(p.xz * 0.9 + 13.0) - 0.46))) * step(0.45, v1));
-  grassL = mix(grassL, vec3(0.62, 0.71, 0.3), way * 0.75);
-  grassS = mix(grassS, vec3(0.3, 0.5, 0.3), way * 0.6);
+  grassL = mix(grassL, vec3(0.86, 0.78, 0.6), way * 0.75);
+  grassS = mix(grassS, vec3(0.46, 0.44, 0.4), way * 0.6);
   // dabs: a darker tuft, a fleck of sun, a few flowers
   vec3 d1 = voro(p.xz * 38.0);
   float dh = hash(d1.yz + 9.0);
@@ -442,11 +444,12 @@ void main() {
   // trees: light, half-light and shade by the lobe, a touch of yellow where the sun is full on them, dark between crowns
   vec3 cr = voro(p.xz * 9.0);
   float gap = (1.0 - smoothstep(0.0, 0.05, cr.x)) * 0.6;
-  vec3 treeL = mix(vec3(0.055, 0.27, 0.12), vec3(0.11, 0.37, 0.13), smoothstep(0.3, 0.36, tscore));
-  treeL = mix(treeL, vec3(0.24, 0.5, 0.15), smoothstep(0.62, 0.68, tscore));
-  vec3 treeS = mix(vec3(0.022, 0.11, 0.095), vec3(0.045, 0.19, 0.115), smoothstep(-0.4, -0.3, tscore));
-  light = mix(light, mix(treeL, vec3(0.03, 0.14, 0.09), gap), wooded);
-  shade = mix(shade, mix(treeS, vec3(0.018, 0.085, 0.085), gap), wooded);
+  // (olive and terebinth: grey-green, silvered in the light)
+  vec3 treeL = mix(vec3(0.17, 0.22, 0.15), vec3(0.27, 0.33, 0.22), smoothstep(0.3, 0.36, tscore));
+  treeL = mix(treeL, vec3(0.45, 0.5, 0.36), smoothstep(0.62, 0.68, tscore));
+  vec3 treeS = mix(vec3(0.07, 0.1, 0.09), vec3(0.12, 0.16, 0.13), smoothstep(-0.4, -0.3, tscore));
+  light = mix(light, mix(treeL, vec3(0.1, 0.13, 0.1), gap), wooded);
+  shade = mix(shade, mix(treeS, vec3(0.06, 0.08, 0.08), gap), wooded);
   // snow: white, and blue-grey where the light does not reach
   light = mix(light, vec3(1.07, 1.06, 1.03) * (0.94 + 0.08 * tone), snow);
   shade = mix(shade, mix(vec3(0.6, 0.65, 0.72), vec3(0.7, 0.74, 0.8), tone), snow);

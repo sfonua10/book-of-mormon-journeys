@@ -14,14 +14,15 @@ const CELL = 150;
 
 /** What a field is, and its colour as paint (linear). Near fields are grass of one kind or another. */
 export const KINDS = [
-  { name: 'pasture', colour: [0.17, 0.46, 0.14] },
-  { name: 'pasture', colour: [0.27, 0.57, 0.13] },
-  { name: 'hay', colour: [0.4, 0.62, 0.14] },
-  { name: 'wheat', colour: [0.66, 0.6, 0.2] },
-  { name: 'young', colour: [0.24, 0.58, 0.16] },
-  { name: 'clover', colour: [0.11, 0.4, 0.17] },
-  { name: 'orchard', colour: [0.2, 0.5, 0.14] },
-  { name: 'plough', colour: [0.4, 0.3, 0.17] },
+  // (terraces of the hill country: grazing gone to straw, barley and wheat, vines, olives, red ploughland)
+  { name: 'pasture', colour: [0.5, 0.42, 0.22] },
+  { name: 'pasture', colour: [0.58, 0.5, 0.28] },
+  { name: 'hay', colour: [0.7, 0.58, 0.3] },
+  { name: 'wheat', colour: [0.78, 0.64, 0.32] },
+  { name: 'young', colour: [0.4, 0.42, 0.22] },
+  { name: 'clover', colour: [0.32, 0.34, 0.2] },
+  { name: 'orchard', colour: [0.36, 0.38, 0.24] },
+  { name: 'plough', colour: [0.5, 0.32, 0.2] },
 ];
 const ORCHARD = 6;
 

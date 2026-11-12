@@ -154,8 +154,9 @@ vec3 applyFog(vec3 c, vec3 world) {
 
 // What grass is, as colour: green where it's lush, straw where it's dry. s is 0 at the root and 1 at the tip.
 vec3 grassColor(float dry, float s) {
-  vec3 green = mix(vec3(0.035, 0.135, 0.05), vec3(0.25, 0.43, 0.085), s);
-  vec3 straw = mix(vec3(0.085, 0.090, 0.030), vec3(0.420, 0.400, 0.150), s);
+  // (the hill country round Jerusalem: what green there is, is sage and olive, and most of it has gone to straw)
+  vec3 green = mix(vec3(0.05, 0.075, 0.035), vec3(0.3, 0.36, 0.14), s);
+  vec3 straw = mix(vec3(0.1, 0.08, 0.035), vec3(0.62, 0.5, 0.24), s);
   return mix(green, straw, dry);
 }
 
@@ -164,10 +165,10 @@ vec3 meadowTint(vec2 xz) {
   float a = texture(tNoiseHi, xz / 520.0).a;
   float b = texture(tNoiseHi, xz / 37.0 + 0.23).r;
   float w = smoothstep(0.3, 0.7, a * 0.6 + b * 0.4);
-  vec3 t = mix(vec3(0.8, 0.96, 1.1), vec3(1.2, 1.06, 0.76), w);
+  vec3 t = mix(vec3(0.9, 0.97, 1.04), vec3(1.12, 1.03, 0.84), w);
   // here and there a patch of something darker and bluer: clover, sedge
   float c = texture(tNoiseHi, xz / 13.0 + 0.61).g;
-  return t * mix(vec3(1.0), vec3(0.72, 0.87, 0.96), smoothstep(0.6, 0.72, c));
+  return t * mix(vec3(1.0), vec3(0.84, 0.9, 0.9), smoothstep(0.6, 0.72, c));
 }
 
 // Grass stands taller in some places than in others: 1 is its usual height.
@@ -198,15 +199,16 @@ float slopeSun(float rel) {
 
 // The meadow as it is painted: three greens, chosen by tone (0 in deep shade, 1 where the light is full).
 vec3 meadowGreen(float tone) {
-  vec3 c = mix(vec3(0.05, 0.25, 0.07), vec3(0.15, 0.46, 0.085), smoothstep(0.2, 0.5, tone));
-  return mix(c, vec3(0.3, 0.57, 0.12), smoothstep(0.56, 0.9, tone));
+  // (straw and sage, as these hills are painted: a deep olive in the shade, tawny in the light, pale gold at the top)
+  vec3 c = mix(vec3(0.15, 0.14, 0.07), vec3(0.4, 0.33, 0.15), smoothstep(0.2, 0.5, tone));
+  return mix(c, vec3(0.64, 0.52, 0.27), smoothstep(0.56, 0.9, tone));
 }
 
 // The light on it at this hour. shade is how open the place is to the sun (cloudAt's measure).
 vec3 meadowLight(float shade) {
   vec3 sun = mix(uSunColor, vec3(dot(uSunColor, vec3(0.333))), 0.3) * 0.42 + uSkyColor * 0.35;
   float lum = dot(uSkyColor, vec3(0.333));
-  vec3 sky = mix(vec3(0.4, 0.74, 0.95), uSkyColor / max(lum, 0.01) * 0.62, 0.35) * (lum * 1.9 + 0.06);
+  vec3 sky = mix(vec3(0.62, 0.68, 0.8), uSkyColor / max(lum, 0.01) * 0.62, 0.35) * (lum * 1.9 + 0.06);
   return mix(sky * 0.85, sun, smoothstep(0.25, 0.95, shade));
 }
 
@@ -294,7 +296,7 @@ vec3 landStrokes(vec3 g, vec2 xz, float dist, float x, float w) {
   float here = smoothstep(0.45, 0.53, texture(tNoiseHi, xz / 340.0 + id * 0.37).b);
   float k = line * here * far;
   // most are pale, as a track or a line of sunlit grass is; some are a deeper green
-  return fract(id * 0.618) < 0.62 ? mix(g, vec3(0.5, 0.64, 0.22), k * 0.6) : g * mix(vec3(1.0), vec3(0.62, 0.8, 0.86), k);
+  return fract(id * 0.618) < 0.62 ? mix(g, vec3(0.74, 0.62, 0.38), k * 0.6) : g * mix(vec3(1.0), vec3(0.76, 0.78, 0.8), k);
 }
 
 vec3 paintGround(vec3 g, vec2 xz, float dist, float stones) {

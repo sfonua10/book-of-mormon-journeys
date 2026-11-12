@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { COMMON } from '../lib/index.js';
 import { along, FARMS, fieldAt, FLOOR, MILL, ROADS, VILLAGE } from './floor.js';
 import { REACH } from './horizon.js';
-import { addBuildings, createBuildingMaterial, layFarm, layVillage, VILLAGE_SIZE } from './village.js';
+import { VILLAGE_SIZE } from './village.js';
 import { fbm, fieldsAt, forestAt, fromValley, heightAt, riverDistance } from './world.js';
 
 const TAU = Math.PI * 2;
@@ -259,9 +259,10 @@ void main() {
   float a = clamp((t.a - 0.42) / max(fwidth(t.a), 1e-4) + 0.5, 0.0, 1.0);
   if (a < 0.04) discard;
   float fir = step(vKind, 1.5);
-  vec3 shade = mix(vec3(0.02, 0.13, 0.11), vec3(0.016, 0.11, 0.11), fir);
-  vec3 half_ = mix(vec3(0.055, 0.26, 0.12), vec3(0.035, 0.2, 0.12), fir);
-  vec3 light = mix(vec3(0.2, 0.47, 0.14), vec3(0.1, 0.34, 0.13), fir);
+  // (olive and pine: grey-green and dark)
+  vec3 shade = mix(vec3(0.07, 0.1, 0.09), vec3(0.04, 0.08, 0.08), fir);
+  vec3 half_ = mix(vec3(0.2, 0.25, 0.17), vec3(0.1, 0.16, 0.12), fir);
+  vec3 light = mix(vec3(0.42, 0.47, 0.32), vec3(0.2, 0.28, 0.18), fir);
   // (haystacks are straw)
   float straw = step(6.5, vKind);
   shade = mix(shade, vec3(0.25, 0.2, 0.09), straw);
@@ -532,20 +533,6 @@ export function createFarWoods(field) {
       place(u + (random() - 0.5) * 4, v + (random() - 0.5) * 4, 4, 15 + 8 * random(), 17 + 14 * random());
     }
   }
-  // the village stands among trees: a ring of them round its foot, and some between the houses
-  for (let i = 0; i < 50; i++) {
-    const a = random() * TAU;
-    const d = i < 36 ? 0.98 + 0.3 * random() : 0.2 + 0.65 * random();
-    // (towards the walk, most of them are left out: the houses are what is to be seen)
-    if (i < 36 && Math.cos(a) < -0.2 && random() < 0.7) continue;
-    const u = VILLAGE[0] + Math.cos(a) * d * VILLAGE_SIZE[0];
-    const v = VILLAGE[1] + Math.sin(a) * d * VILLAGE_SIZE[1];
-    const roll = random();
-    if (roll < 0.1) place(u, v, 4, 11 + 4 * random(), 20 + 8 * random());
-    else if (roll < 0.6) place(u, v, 5, 11 + 5 * random(), 10 + 4 * random());
-    else place(u, v, 2 + (random() < 0.5 ? 0 : 1), 18 + 8 * random(), 11 + 4 * random());
-  }
-
   const quad = new THREE.InstancedBufferGeometry();
   quad.setAttribute('position', new THREE.Float32BufferAttribute([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0], 3));
   quad.setIndex([0, 1, 2, 0, 2, 3]);
@@ -565,45 +552,10 @@ export function createFarWoods(field) {
   trees.frustumCulled = false;
   group.add(trees);
 
-  // ---- the village and the farmsteads ----
-  const houseMaterial = createBuildingMaterial(field);
-  const buildings = layVillage(random);
-  for (const [u, v] of FARMS) buildings.push(...layFarm(random, u, v));
-  addBuildings(group, houseMaterial, buildings);
-  const matrix = new THREE.Matrix4();
-  const up = new THREE.Vector3(0, 1, 0);
-  // ---- the mill: its sails go round with the wind ----
-  const [mx, mz] = fromValley(MILL[0], MILL[1]);
-  const size = 2.1;
-  const foot = new THREE.Vector3(mx, heightAt(mx, mz), mz);
-  // it faces up the valley, towards the walk
-  const yaw = Math.atan2(-mx, -mz);
-  const facing = new THREE.Quaternion().setFromAxisAngle(up, yaw);
-  const millRoof = new THREE.InstancedBufferAttribute(new Float32Array([0.42, 0.16, 0.1]), 3);
-  const tower = new THREE.InstancedMesh(millGeometry(), houseMaterial, 1);
-  const millWall = new THREE.InstancedBufferAttribute(new Float32Array([0.95, 0.92, 0.84]), 3);
-  tower.geometry.setAttribute('aRoof', millRoof);
-  tower.geometry.setAttribute('aWall', millWall);
-  tower.setMatrixAt(0, matrix.compose(foot, facing, new THREE.Vector3(size, size, size)));
-  tower.frustumCulled = false;
-  const sails = new THREE.InstancedMesh(sailsGeometry(), houseMaterial, 1);
-  sails.geometry.setAttribute('aRoof', millRoof);
-  sails.geometry.setAttribute('aWall', millWall);
-  sails.setMatrixAt(0, new THREE.Matrix4());
-  sails.position.copy(foot).add(new THREE.Vector3(Math.sin(yaw) * 2.6 * size, 10.6 * size, Math.cos(yaw) * 2.6 * size));
-  sails.scale.setScalar(size);
-  sails.frustumCulled = false;
-  group.add(tower, sails);
-  const spin = new THREE.Quaternion();
-  const axis = new THREE.Vector3(0, 0, 1);
-  let angle = 0.4;
-
+  // (no far village, farmsteads or mill in the hill country round Jerusalem)
   return {
     group,
     count: at.length / 3,
-    update(dt, wind) {
-      angle -= dt * (0.2 + wind * 0.07);
-      sails.quaternion.copy(facing).multiply(spin.setFromAxisAngle(axis, angle));
-    },
+    update() {},
   };
 }

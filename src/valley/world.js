@@ -1,6 +1,8 @@
-// The valley: you start on the shoulder of a hill beside one great tree, the land falls away ahead to a tarn on
-// the valley floor, wooded hills close it in on both sides and behind, and far off, past a plain of fields, are
-// mountains. Plain functions of (x, z), read once by the field and by the far land.
+// The hill country round Jerusalem: you start at the brothers' camp on the shoulder of a hill beside one great tree,
+// the land falls away ahead and rises again to the city on its own hill, dry hills close it in on both sides and
+// behind, and far off are mountains. Plain functions of (x, z), read once by the field and by the far land.
+// (Remixed from Painted Valley's summer valley: the tarn is gone, the city's rise is new; see src/game/places.js.)
+import { CITY, cityDistance, LEHI_HOUSE, PATHS } from '../game/places.js';
 
 /** The way the valley runs from the start, a unit vector (x, z). */
 export const HERO = [0.6, 0.8];
@@ -11,11 +13,18 @@ export const START = [0, 0];
 export const TREE = fromValley(9, -13);
 /** Where the village stands, (u, v): near enough to be seen as a village, on a rise of its own. */
 export const VILLAGE = [740, -210];
-export const TARN = { at: fromValley(415, 38), rx: 46, rz: 27, level: 0 };
+// (there is no tarn in these hills: it is put far out of the world, so everything that asks how near it is hears
+// "far")
+export const TARN = { at: fromValley(9000, 9000), rx: 46, rz: 27, level: 0 };
 
 /** (metres down the valley, metres to the right of it) to (x, z). */
 export function fromValley(u, v) {
   return [u * DX - v * DZ, u * DZ + v * DX];
+}
+
+/** (x, z) to (metres down the valley, metres to the right of it). */
+export function toValley(x, z) {
+  return [x * DX + z * DZ, -x * DZ + z * DX];
 }
 
 function hash(ix, iz, seed) {
@@ -115,10 +124,27 @@ export function forestAt(x, z) {
   // the hills carry more of it than the plain
   f = Math.max(f, smooth(55, 120, land(x, z)) * smooth(0.36, 0.5, fbm(x / 900 + 2.2, z / 900 + 6.1, 3, 101)));
   f *= smooth(820, 1500, r) * smooth(30, 170, riverDistance(x, z)) * (1 - fieldsAt(x, z));
+  // (the hill country is open: woods only in the folds of the hills)
+  f *= 0.55 * smooth(0.5, 0.7, fbm(x / 1100 + 9.1, z / 1100 + 1.7, 2, 107));
   return f;
 }
 
+/** The level the city is built at, and how it rises towards its east end, set once from the land under it. */
+let cityLevel = null;
+
 function land(x, z) {
+  const h = wildLand(x, z);
+  const u = x * DX + z * DZ;
+  const v = -x * DZ + z * DX;
+  // inside the walls the ground is made level for building, and it eases back into the hill outside them
+  const d = cityDistance(u, v);
+  if (d > 40) return h;
+  cityLevel ??= wildLand(...fromValley(CITY.at[0], CITY.at[1]));
+  const level = cityLevel + (u - CITY.at[0]) * 0.03;
+  return h + (level - h) * (1 - smooth(4, 40, d));
+}
+
+function wildLand(x, z) {
   const u = x * DX + z * DZ;
   const v = -x * DZ + z * DX;
   const r = Math.hypot(x, z);
@@ -135,10 +161,12 @@ function land(x, z) {
   h += roll;
   // the hill you start on, a long shoulder
   h += 54 * Math.exp(-((u + 30) ** 2) / (2 * 185 ** 2) - (v * v) / (2 * 330 ** 2));
-  // the village's rise
-  h += 17 * Math.exp(-((u - VILLAGE[0]) ** 2 + (v - VILLAGE[1]) ** 2) / (2 * 95 ** 2));
-  // the valley floor, a broad shallow dish round the tarn
-  h -= 5 * Math.exp(-((u - 420) ** 2) / (2 * 160 ** 2) - ((v - 40) ** 2) / (2 * 220 ** 2));
+  // Jerusalem's hill
+  h += 24 * Math.exp(-((u - CITY.at[0]) ** 2 + (v - CITY.at[1]) ** 2) / (2 * 120 ** 2));
+  // a dip between the camp's hill and the city's, so the city stands up across it
+  h -= 7 * Math.exp(-((u - 190) ** 2) / (2 * 60 ** 2) - (v * v) / (2 * 260 ** 2));
+  // the land of inheritance: a gentle shelf
+  h -= 6 * Math.exp(-((u - LEHI_HOUSE[0]) ** 2 + (v - LEHI_HOUSE[1]) ** 2) / (2 * 70 ** 2));
   // wooded hills to either side, and behind
   const side = Math.abs(v) + 160 * (fbm(u / 520 + 5, v / 520, 2, 31) - 0.5);
   h += 120 * smooth(430, 1500, side) * (0.6 + 0.8 * fbm(x / 800 + 2, z / 800 + 9, 3, 37));
@@ -169,51 +197,48 @@ export function heightAt(x, z) {
 }
 
 /** How far (x, z) is from the middle of the nearest footpath, metres. */
-export function pathDistance(x, z) {
-  const u = x * DX + z * DZ;
-  const v = -x * DZ + z * DX;
-  let best = 1e3;
-  // one runs from the tree down to the tarn
-  if (u >= -60 && u <= 372) {
-    const pv = -4 + 30 * Math.sin(u / 95) + 9 * Math.sin(u / 37 + 1.3) + (u / 372) * 22;
-    const slope = (30 / 95) * Math.cos(u / 95) + (9 / 37) * Math.cos(u / 37 + 1.3) + 22 / 372;
-    // it peters out at both ends
-    const ends = Math.max(0, 14 - (u + 60), 14 - (372 - u)) * 0.12;
-    best = Math.abs(v - pv) / Math.sqrt(1 + slope * slope) + ends;
-  }
-  // a second crosses it on the slope, from the groves on one side of the valley to those on the other
-  if (v > -250 && v < 280) {
-    const pu = 236 + 34 * Math.sin(v / 80 + 0.6) + 10 * Math.sin(v / 29);
-    const slope = (34 / 80) * Math.cos(v / 80 + 0.6) + (10 / 29) * Math.cos(v / 29);
-    const ends = Math.max(0, 14 - (v + 250), 14 - (280 - v)) * 0.12;
-    best = Math.min(best, Math.abs(u - pu) / Math.sqrt(1 + slope * slope) + ends);
-  }
-  // and a third leaves the tarn for the road to the village
-  if (u > 428 && u < 640) {
-    const pv = -30 - (u - 428) * 0.7 + 9 * Math.sin(u / 24);
-    const slope = -0.7 + (9 / 24) * Math.cos(u / 24);
-    const ends = Math.max(0, 14 - (u - 428)) * 0.12;
-    best = Math.min(best, Math.abs(v - pv) / Math.sqrt(1 + slope * slope) + ends);
+/** Distance from (u, v) to a line of points, and how far along it that nearest point is, metres. */
+function lineDistance(u, v, line) {
+  let best = 1e9;
+  for (let i = 0; i + 1 < line.length; i++) {
+    const [au, av] = line[i];
+    const [bu, bv] = line[i + 1];
+    const du = bu - au;
+    const dv = bv - av;
+    const t = Math.min(1, Math.max(0, ((u - au) * du + (v - av) * dv) / (du * du + dv * dv)));
+    best = Math.min(best, Math.hypot(u - au - du * t, v - av - dv * t));
   }
   return best;
 }
 
-export function paint(x, z) {
-  // lush nearly everywhere: summer. A little straw on the driest shoulders.
-  const dry = 0.1 + 0.34 * smooth(0.52, 0.78, fbm(x / 90 + 2.2, z / 90 + 8.1, 3, 21));
-  const t = tarnDistance(x, z);
-  const wet = Math.max(smooth(0.66, 0.74, fbm(x / 47 + 5.5, z / 47 + 9.9, 2, 33)) * 0.6, 1 - smooth(1.0, 1.7, t));
-  let growth = 1;
-  // a footpath worn to earth, its edges ragged
-  const path = pathDistance(x, z);
-  growth = Math.min(growth, smooth(0.42, 1.1, path + (fbm(x / 2.7, z / 2.7, 2, 61) - 0.5) * 0.7));
-  // nothing grows under the water
-  growth = Math.min(growth, smooth(0.8, 0.86, t + (fbm(x / 3.3, z / 3.3, 2, 67) - 0.5) * 0.04));
-  // flowers in drifts, thickest on the slope below the start and round the tarn
+/** How far (x, z) is from the middle of the nearest footpath, metres. */
+export function pathDistance(x, z) {
   const u = x * DX + z * DZ;
   const v = -x * DZ + z * DX;
-  const slope = Math.exp(-((u - 150) ** 2) / (2 * 80 ** 2) - ((v + 70) ** 2) / (2 * 120 ** 2));
-  const shore = Math.exp(-((u - 390) ** 2) / (2 * 80 ** 2) - ((v - 50) ** 2) / (2 * 120 ** 2));
-  const flowers = Math.min(1, smooth(0.4, 0.68, fbm(x / 38 - 6, z / 38 + 3, 2, 55)) * 0.75 + slope * 0.9 + shore * 0.7);
+  // (each path wanders a little off its straight lines)
+  const wander = 2.2 * Math.sin(u / 23 + v / 31) + 1.4 * Math.sin(u / 9.7 - v / 13);
+  let best = 1e3;
+  for (const line of PATHS) best = Math.min(best, lineDistance(u + wander * 0.3, v + wander, line));
+  return Math.max(0, best - 0.6);
+}
+
+export function paint(x, z) {
+  const u = x * DX + z * DZ;
+  const v = -x * DZ + z * DX;
+  // dry nearly everywhere: grass gone to straw, sage and thorn in the hollows
+  const dry = 0.62 + 0.36 * smooth(0.4, 0.66, fbm(x / 90 + 2.2, z / 90 + 8.1, 3, 21));
+  const wet = smooth(0.7, 0.78, fbm(x / 47 + 5.5, z / 47 + 9.9, 2, 33)) * 0.35;
+  // thin cover, in clumps, with stony earth between
+  const clumps = fbm(x / 9 + 1.3, z / 9 - 4.1, 3, 41) * 0.65 + fbm(x / 60 - 3.3, z / 60 + 2.7, 2, 43) * 0.35;
+  let growth = 0.15 + 0.85 * smooth(0.34, 0.6, clumps);
+  // a footpath worn to earth, its edges ragged
+  const path = pathDistance(x, z);
+  growth = Math.min(growth, smooth(0.6, 1.8, path + (fbm(x / 2.7, z / 2.7, 2, 61) - 0.5) * 0.9));
+  // nothing grows in the city's streets or in the trodden ground round its walls, the camp, or the house
+  growth *= smooth(-2, 12, cityDistance(u, v));
+  growth *= smooth(9, 22, Math.hypot(u - 4, v - 6));
+  growth *= smooth(16, 30, Math.hypot(u - LEHI_HOUSE[0], v - LEHI_HOUSE[1]));
+  // a few red anemones and yellow flowers in drifts
+  const flowers = smooth(0.58, 0.74, fbm(x / 38 - 6, z / 38 + 3, 2, 55)) * 0.35;
   return { dry: dry * (1 - wet), growth, wet, flowers };
 }

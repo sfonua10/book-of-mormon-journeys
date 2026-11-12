@@ -19,7 +19,7 @@ import { createSounds } from './sounds.js';
 import { createStrokes } from './strokes.js';
 import { createTrees } from './trees.js';
 import { createWanderer } from './wanderer.js';
-import { createTarn } from './water.js';
+import { addCityColliders, createCity } from '../game/city.js';
 import { fromValley, heightAt, HERO, paint, START, tarnDistance } from './world.js';
 
 const params = new URLSearchParams(location.search);
@@ -149,7 +149,8 @@ const field = createField({
   baked,
   textures: await groundTextures,
   density: quality === 'low' ? 0.45 : quality === 'medium' ? 0.7 : 1,
-  height: 0.5,
+  // (dry hill grass: shorter than a summer meadow's)
+  height: 0.34,
   seed: 3,
 });
 scene.add(field.group);
@@ -195,7 +196,9 @@ const trees = createTrees(field, { cards: quality === 'low' ? 0.6 : quality === 
 mark('trees');
 const farWoods = createFarWoods(field);
 mark('farWoods');
-scene.add(sky.mesh, createHorizon(field, EXTENT / 2), trees.group, farWoods.group, createTarn(field, sky));
+const city = createCity(field);
+mark('city');
+scene.add(sky.mesh, createHorizon(field, EXTENT / 2), trees.group, farWoods.group, city.mesh);
 // the finish: the frame laid in as brush marks. ?paint=0 for none; P turns it on and off.
 frame.paint = params.has('paint') ? Number(params.get('paint')) : quality === 'low' ? 0 : quality === 'medium' ? 2 : 3;
 const paintWas = frame.paint || 3;
@@ -362,6 +365,8 @@ const physics = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
     if (kind > 3) break;
     physics.createCollider(RAPIER.ColliderDesc.cylinder(4, (kind === 0 ? 0.85 : 0.4) * scale).setTranslation(tx, field.heightAt(tx, tz) + 3, tz));
   }
+  // the city's walls and houses, the house in the land of inheritance, the tents
+  addCityColliders(RAPIER, physics, city.solids);
 }
 const wanderer = await wandererComing;
 scene.add(wanderer.group);
@@ -484,7 +489,8 @@ function updateWanderer(dt) {
   field.uniforms.uWalker.value.set(at.x, at.z, 0.72, Math.min(9, (1.75 * flat) / Math.max(0.05, sky.sunDir.y)));
 
   if (!window.__tg?.view) {
-    follow.update(dt, at, inp.look, inp.zoom, () => null, (x, z) => field.heightAt(x, z) + 0.5);
+    // (the eye comes in when a wall is in the way, as it does for a trunk)
+    follow.update(dt, at, inp.look, inp.zoom, (from, dir, max) => walker.castRay(from, dir, max), (x, z) => field.heightAt(x, z) + 0.5);
     camera.updateMatrixWorld();
     // (should you step into your own eyes, you look the way the camera did)
     player.yaw = follow.yaw - Math.PI;
