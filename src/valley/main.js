@@ -389,7 +389,7 @@ const physics = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
 const wanderer = await wandererComing;
 scene.add(wanderer.group);
 // everyone else in the story
-const cast = createCast(field, await manComing, { heightAt: (x, z) => field.heightAt(x, z), air: (x, y, z, out) => air(x, y, z, out) });
+const cast = createCast(field, await manComing, { heightAt: (x, z) => field.heightAt(x, z), air: (x, y, z, out) => air(x, y, z, out), scene });
 await Promise.all(PEOPLE.map(([name, dress, beard]) => cast.add(name, STORY_CLOTHES[dress], { beard })));
 scene.add(cast.group);
 const props = createProps(city, (x, z) => field.heightAt(x, z));
@@ -754,6 +754,7 @@ const ui = createUI();
 /** What the story can reach of the game. Places are given in (u, v) with P, or in metres from the city's middle with C. */
 const g = {
   canvas,
+  scene,
   ui,
   cast,
   props,
@@ -837,6 +838,10 @@ const g = {
   },
   get guidance() {
     return guidance;
+  },
+  /** Whether the story holds Nephi still (a card is up). */
+  get frozen() {
+    return !!director?.frozen;
   },
 };
 guidance = createGuidance(g, ui);

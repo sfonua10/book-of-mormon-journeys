@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { createWanderer } from '../valley/wanderer.js';
+import { createHalo } from './halo.js';
 
 /** A fresh copy of a loaded man (man.js), with his own skeleton, sharing the clips. */
 export function cloneMan(src) {
@@ -26,7 +27,7 @@ const angleWrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 /**
  * @param field the meadow (its uniforms light them)
  * @param base a loaded man, never dressed: each one is a clone of it
- * @param world { heightAt(x, z), air(x, y, z, out) }
+ * @param world { heightAt(x, z), air(x, y, z, out), scene }
  */
 export function createCast(field, base, world) {
   const group = new THREE.Group();
@@ -34,6 +35,9 @@ export function createCast(field, base, world) {
   // Where Nephi has walked, a point a metre or so apart, newest last: those who follow him keep to it, so they come
   // through the gate and along the streets as he did, not through the walls.
   const trail = [];
+  // the light round one who shines (the angel): set an npc's `aura` above 0 and it is drawn about him
+  const halo = world.scene ? createHalo(world.scene, { color: [1.5, 1.42, 1.2], width: 2.8, height: 3.9, back: 0.6, rays: 1 }) : null;
+  let time = 0;
 
   async function add(name, clothes, { beard = false, scale = 1 } = {}) {
     const man = cloneMan(base);
@@ -236,6 +240,7 @@ export function createCast(field, base, world) {
       for (const npc of people.values()) {
         npc.stop();
         npc.show(false);
+        npc.aura = 0;
       }
     },
     /** Records where Nephi is; a jump of more than a few metres (a new scene) starts the trail again. */
@@ -246,7 +251,19 @@ export function createCast(field, base, world) {
       if (trail.length > 400) trail.shift();
     },
     update(dt) {
-      for (const npc of people.values()) if (npc.w.group.visible) settle(npc, dt);
+      time += dt;
+      let shining = null;
+      for (const npc of people.values()) {
+        if (!npc.w.group.visible) continue;
+        settle(npc, dt);
+        if (npc.aura > 0) shining = npc;
+      }
+      if (halo) {
+        halo.update(time);
+        const o = shining?.man.object;
+        if (o) halo.set(o.position.x, o.position.y + 1.05, o.position.z, shining.aura * (0.92 + 0.08 * Math.sin(time * 1.4)));
+        else halo.set(0, 0, 0, 0);
+      }
     },
   };
 }

@@ -306,6 +306,7 @@ export function story(g) {
           c.until(() => {
             bright = Math.min(1, bright + 0.015);
             angel.w.glow.value = 0.4 * bright;
+            angel.aura = bright;
             g.guidance.shine(...stands, 9 * bright);
             return bright >= 1;
           }),
@@ -316,12 +317,14 @@ export function story(g) {
           c.until(() => {
             bright = Math.max(0, bright - 0.02);
             angel.w.glow.value = 0.4 + (1 - bright) * 1.2;
+            angel.aura = bright;
             g.guidance.shine(...stands, 9 * bright);
             return bright <= 0;
           }),
         );
         g.guidance.shine(null);
         g.view(null);
+        angel.aura = 0;
         angel.show(false);
         for (const n of ['laman', 'lemuel', 'sam']) who(n).face(...me());
         await c.verse('3:31');
@@ -344,7 +347,6 @@ export function story(g) {
         reset({ hour: 22.5, stand: hide, face: gateOut });
         brothersAt(P(GATE[0] - 13, 36), hide);
         who('laban').place(...fallen, 1.2).lie(true);
-        who('zoram').place(...beforeTreasury, Math.PI).face(...C(IN_CITY.treasuryDoor[0] - 6, 0));
       },
       async run(c) {
         await c.fade(0, 2);
@@ -369,7 +371,6 @@ export function story(g) {
       setup() {
         reset({ hour: 22.6, stand: C(18.5, 21), face: fallen });
         who('laban').place(...fallen, 1.2).lie(true);
-        who('zoram').place(...beforeTreasury, Math.PI).face(...C(IN_CITY.treasuryDoor[0] - 6, 0));
       },
       async run(c) {
         shoulder(fallen, { back: 4.5, up: 2.8, look: 0.3 });
@@ -389,6 +390,8 @@ export function story(g) {
         who('laban').show(false);
         g.dress('laban');
         await c.verse('4:19');
+        // (Zoram, at the treasury door, is first seen now, as Nephi goes there)
+        who('zoram').place(...beforeTreasury, Math.PI).face(...C(IN_CITY.treasuryDoor[0] - 6, 0));
         await c.fade(0, 1.4);
         g.guidance.lead([me(), C(19.5, 14), C(19.5, 0), C(IN_CITY.treasuryDoor[0] - 6, -1), beforeTreasury]);
         await c.until(() => {

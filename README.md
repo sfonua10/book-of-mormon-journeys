@@ -12,7 +12,7 @@ It is a remix of Patch's [Painted valley](https://patch.gg/blendi/painted-valley
 |---|---|---|---|
 | One: Up to Jerusalem | 3:7–21 | Afternoon | Consult with your brothers, walk to the gate. Laman goes in and is driven out. You answer your brothers (3:15–20). |
 | Two: Our Gold and Our Silver | 3:22–4:4 | Golden hour | Gather the riches at Lehi's house and take them to Laban. Flee his servants and hide in the rock. The angel speaks. You answer your brothers again (4:1–3). |
-| Three: Led by the Spirit | 4:5–38 | Night | No marker and no objective. Stand still and a light gathers on the ground the way you should go (4:6). Find Laban, then the treasury and Zoram. Go back to your brothers outside the walls, and make the oath. |
+| Three: Led by the Spirit | 4:5–38 | Night | No marker and no objective. Stand still and a soft light gathers in the air the way you should go (4:6); wander off and it comes back to you. Find Laban, then the treasury and Zoram. Go back to your brothers outside the walls, and make the oath. |
 | The tent of their father | 5:7–8, 5:21, 3:7 | Evening | The return, and the end screen with questions to talk about. |
 
 The words on the cards are the scripture's own, quoted from `src/game/scripture.js`. The few lines that are not scripture are shown in italics without a reference. The beating at the rock (3:28) and Laban's death (4:18) are read, not shown: the screen dims or goes dark, and the 4:18 card quotes only "Therefore I did obey the voice of the Spirit …".
