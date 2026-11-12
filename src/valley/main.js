@@ -18,9 +18,17 @@ import { createSky, createSkyParts, SUNSET } from './sky.js';
 import { createSounds } from './sounds.js';
 import { createStrokes } from './strokes.js';
 import { createTrees } from './trees.js';
-import { createWanderer } from './wanderer.js';
-import { addCityColliders, createCity } from '../game/city.js';
+import { CLOTHES, createWanderer } from './wanderer.js';
+import { addCityColliders, createCity, createProps } from '../game/city.js';
+import { createDirector } from '../game/director.js';
+import { createGuidance } from '../game/guidance.js';
+import { cloneMan, createCast } from '../game/npc.js';
+import { reference, verses } from '../game/scripture.js';
+import { CLOTHES as STORY_CLOTHES, PEOPLE, story } from '../game/story.js';
+import { createUI } from '../game/ui.js';
+import { loadMan } from '../figure/man.js';
 import { fromValley, heightAt, HERO, paint, START, tarnDistance } from './world.js';
+import { CITY } from '../game/places.js';
 
 const params = new URLSearchParams(location.search);
 // how long each part of getting ready took, ms: for tests
@@ -154,8 +162,10 @@ const field = createField({
   seed: 3,
 });
 scene.add(field.group);
-// (the wanderer is the biggest thing to fetch: asked for now, he arrives while the rest is made)
-const wandererComing = createWanderer(field);
+// (the man is the biggest thing to fetch: asked for now, he arrives while the rest is made. Nephi and everyone else
+// in the story are copies of him, each dressed in his own colours.)
+const manComing = loadMan({ base: './figure/' });
+const wandererComing = manComing.then((man) => createWanderer(field, null, {}, { man: cloneMan(man) }));
 const physicsComing = RAPIER.init();
 mark('field');
 field.uniforms.tFloor.value = createFloor(renderer, FLOOR_SIZE, (await floorJob).pixels);
@@ -209,7 +219,8 @@ scene.add(stones.group);
 if (quality !== 'low' && params.get('seeds') !== '0') scene.add(createFluff(field, quality === 'medium' ? 200 : 320));
 // time passes: the afternoon you start in is sunset twenty minutes later. ?drift=0 holds the hour; T and 1 to 4
 // pick a time of day and hold it there, 0 lets it pass again, and , and . nudge it.
-let drift = params.has('drift') ? Number(params.get('drift')) : 1;
+// (in the story the hour is the story's: it does not pass by itself)
+let drift = params.has('drift') ? Number(params.get('drift')) : 0;
 const TIMES = [
   { hour: 12.5, name: 'Noon' },
   { hour: 15.5, name: 'Afternoon' },
@@ -219,6 +230,12 @@ const TIMES = [
 const DRIFT = (SUNSET - 15.5) / (20 * 60);
 let castAt = 0;
 let clock = 0;
+
+// the story's parts, made once everything else is ready (see the end of this file)
+let director = null;
+let guidance = null;
+/** A fixed view the story asks for ({ position, target }), or null for the eye behind Nephi. */
+let cinematic = null;
 
 // ---- the walker ----------------------------------------------------------------------------------------------
 const EYE = 1.68;
@@ -370,6 +387,12 @@ const physics = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
 }
 const wanderer = await wandererComing;
 scene.add(wanderer.group);
+// everyone else in the story
+const cast = createCast(field, await manComing, { heightAt: (x, z) => field.heightAt(x, z), air: (x, y, z, out) => air(x, y, z, out) });
+await Promise.all(PEOPLE.map(([name, dress, beard]) => cast.add(name, STORY_CLOTHES[dress], { beard })));
+scene.add(cast.group);
+const props = createProps(city, (x, z) => field.heightAt(x, z));
+scene.add(props.group);
 const animator = new Animator(wanderer.man);
 const walker = new Walker({ RAPIER, world: physics, man: wanderer.man, animator, spawn: new THREE.Vector3(player.x, player.y, player.z), yaw: player.yaw + Math.PI });
 const follow = new Follow(camera);
@@ -430,8 +453,15 @@ function air(x, y, z, out) {
   return out.set(cx * speed, 0.2 * Math.sin(clock * 2.3 + x) * gust, cz * speed);
 }
 
+/** Where the autopilot (?auto) last made progress towards its goal, and when. */
+const autoTrack = { key: '', d: Infinity, since: 0 };
 function updateWanderer(dt) {
   const inp = input.read(dt);
+  if (director?.frozen) {
+    // while a card is up he stands; the eye can still look round
+    inp.move = { x: 0, y: 0 };
+    inp.jump = false;
+  } else if (director?.auto) steer(inp, dt);
   held.copy(walker.feet);
   const bodyWas = walker.body.translation();
   walker.update(dt, inp, follow.yaw);
@@ -489,12 +519,58 @@ function updateWanderer(dt) {
   field.uniforms.uWalker.value.set(at.x, at.z, 0.72, Math.min(9, (1.75 * flat) / Math.max(0.05, sky.sunDir.y)));
 
   if (!window.__tg?.view) {
+    follow.free = cinematic;
     // (the eye comes in when a wall is in the way, as it does for a trunk)
     follow.update(dt, at, inp.look, inp.zoom, (from, dir, max) => walker.castRay(from, dir, max), (x, z) => field.heightAt(x, z) + 0.5);
     camera.updateMatrixWorld();
     // (should you step into your own eyes, you look the way the camera did)
     player.yaw = follow.yaw - Math.PI;
     player.pitch = -follow.pitch;
+  }
+}
+
+/** The way-marker over where the story wants Nephi to go (never in the night act, where there is none). */
+const marked = new THREE.Vector3();
+function showMarker() {
+  // (nothing until the story has begun: the warm-up frames come before the page's parts are made)
+  if (!director) return;
+  const goal = director.goal;
+  if (!goal?.mark || director.frozen) return void ui.marker(null);
+  marked.set(goal.x, field.heightAt(goal.x, goal.z) + 2.4, goal.z).project(camera);
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  let x = (marked.x * 0.5 + 0.5) * w;
+  let y = (-marked.y * 0.5 + 0.5) * h;
+  // behind the eye: show it at the bottom edge, on the side it lies
+  if (marked.z > 1) {
+    x = w - x;
+    y = h - 60;
+  }
+  ui.marker(Math.min(w - 50, Math.max(50, x)), Math.min(h - 60, Math.max(70, y)), Math.hypot(goal.x - player.x, goal.z - player.z));
+}
+
+/** The autopilot: walks him towards the story's goal, and lifts him over anything he is stuck on. */
+function steer(inp, dt) {
+  const goal = director.goal;
+  if (!goal) return;
+  const dx = goal.x - player.x;
+  const dz = goal.z - player.z;
+  const d = Math.hypot(dx, dz);
+  if (d < (goal.r ?? 1) * 0.6) return;
+  const c = follow.yaw;
+  inp.move = { x: (dx * -Math.cos(c) + dz * Math.sin(c)) / d, y: (dx * Math.sin(c) + dz * Math.cos(c)) / d };
+  inp.sprint = d > 14;
+  // (a new goal, or the next stop on the way, starts the count again)
+  const key = `${goal.x.toFixed(1)},${goal.z.toFixed(1)}`;
+  if (key !== autoTrack.key) Object.assign(autoTrack, { key, d: Infinity, since: 0 });
+  if (d < autoTrack.d - 0.5) Object.assign(autoTrack, { d, since: 0 });
+  else autoTrack.since += dt;
+  if (autoTrack.since > 3) {
+    const step = Math.min(d, 8);
+    const [u, v] = [player.x * 0.6 + player.z * 0.8, -player.x * 0.8 + player.z * 0.6];
+    g.log(`autopilot stuck at (u ${u.toFixed(0)}, v ${v.toFixed(0)}) ${d.toFixed(1)} m from its goal: lifted ${step.toFixed(1)} m on`);
+    g.standAt(player.x + (dx / d) * step, player.z + (dz / d) * step, Math.atan2(dx, dz));
+    Object.assign(autoTrack, { d: Infinity, since: 0 });
   }
 }
 
@@ -523,9 +599,10 @@ function placeCamera() {
 const wind = { angle: Math.atan2(HERO[1], HERO[0]) + 0.9, speed: 4.5 };
 
 function setHour(hour) {
-  sky.setHour(Math.min(SUNSET, Math.max(12, hour)));
+  sky.setHour(Math.max(12, hour));
   trees.cast(sky.sunDir);
   castAt = sky.hour;
+  city.uniforms.uNight.value = sky.night;
 }
 let noteTimer = 0;
 /** A word or two at the top of the screen, gone in a moment. */
@@ -566,19 +643,8 @@ document.addEventListener('mousemove', (e) => {
 document.addEventListener('keydown', (e) => {
   keys.add(e.code);
   // (after the last of them, round to the first again)
-  if (e.code === 'KeyT') pickTime(Math.max(0, TIMES.findIndex((time) => time.hour > sky.hour + 0.05)));
-  for (let i = 0; i < TIMES.length; i++) if (e.code === `Digit${i + 1}`) pickTime(i);
-  if (e.code === 'Digit0') {
-    drift = 1;
-    note('Time passing');
-  }
-  if (e.code === 'Comma') setHour(sky.hour - 0.25);
-  if (e.code === 'Period') setHour(sky.hour + 0.25);
+  // (the story keeps the hour and the eye; P still takes the paint finish off and on)
   if (e.code === 'KeyP') frame.paint = frame.paint ? 0 : paintWas;
-  if (e.code === 'KeyV') {
-    setThird(!third);
-    note(third ? 'Third person' : 'First person');
-  }
   if (e.code === 'Space') e.preventDefault();
 });
 document.addEventListener('keyup', (e) => keys.delete(e.code));
@@ -607,8 +673,14 @@ function tick(dt) {
     input.read(dt);
     updatePlayer(dt);
   }
+  cast.track(player.x, player.z);
+  cast.update(dt);
+  props.update();
   placeCamera();
   field.update(dt, camera);
+  director?.update(dt);
+  guidance?.update(dt);
+  showMarker();
   farWoods.update(dt, wind.speed);
   frame.update(dt, camera);
   clock += dt;
@@ -629,7 +701,7 @@ function tick(dt) {
   }
   const tarn = 1 - Math.min(1, Math.max(0, (tarnDistance(player.x, player.z) - 1) / 1.6));
   const gust = 0.5 + 0.5 * Math.sin(clock * 0.23) * Math.sin(clock * 0.37 + 1);
-  sounds.update(dt, { wind: wind.speed, gust, tree, tarn, dusk: Math.min(1, Math.max(0, (sky.hour - 18.8) / 1.4)) });
+  sounds.update(dt, { wind: wind.speed, gust, tree, tarn, dusk: Math.min(1, Math.max(0, (sky.hour - 18.8) / 1.4)) * (1 - 0.4 * sky.night) });
   sky.update(dt, camera);
   frame.exposure = sky.exposure;
   frame.render(scene, camera);
@@ -676,8 +748,71 @@ await stage(0.9, 'Warming up');
 }
 mark('warm');
 
+// ---- the story -----------------------------------------------------------------------------------------------
+const ui = createUI();
+/** What the story can reach of the game. Places are given in (u, v) with P, or in metres from the city's middle with C. */
+const g = {
+  canvas,
+  ui,
+  cast,
+  props,
+  field,
+  sounds,
+  verses,
+  reference,
+  P: (u, v) => fromValley(u, v),
+  C: (cu, cv) => fromValley(CITY.at[0] + cu, CITY.at[1] + cv),
+  auto: params.has('auto'),
+  heightAt: (x, z) => field.heightAt(x, z),
+  clock: () => clock,
+  player: {
+    get x() {
+      return player.x;
+    },
+    get z() {
+      return player.z;
+    },
+    get vx() {
+      return player.vx;
+    },
+    get vz() {
+      return player.vz;
+    },
+    get yaw() {
+      return walker.yaw;
+    },
+  },
+  log: (message) => console.log(`[game] ${message}`),
+  setHour,
+  /** Puts Nephi at (x, z) facing yaw, with the eye behind him. */
+  standAt(x, z, yaw) {
+    standAt(x, z, yaw);
+    Object.assign(player, { x, z, y: field.heightAt(x, z), vx: 0, vz: 0 });
+    follow.yaw = yaw;
+    follow.pitch = 0.12;
+    follow.pivot.set(0, 0, 0);
+    follow.distance = follow.want;
+  },
+  /** Nephi's own clothes, or Laban's (4:19). */
+  dress(who) {
+    wanderer.dress(who === 'laban' ? STORY_CLOTHES.laban : CLOTHES);
+  },
+  /** A fixed view: from [x, z, metres above the ground] to [x, z, metres above]; null to give the eye back. */
+  view(v) {
+    cinematic = v && {
+      position: new THREE.Vector3(v.from[0], field.heightAt(v.from[0], v.from[1]) + v.from[2], v.from[1]),
+      target: new THREE.Vector3(v.to[0], field.heightAt(v.to[0], v.to[1]) + v.to[2], v.to[1]),
+    };
+  },
+  get guidance() {
+    return guidance;
+  },
+};
+guidance = createGuidance(g, ui);
+director = createDirector(story(g), ui, g, { auto: g.auto });
+
 // for tests and filming: everything the page is made of, and a clock to drive by hand
-window.__tg = { sounds, walker, follow, input, wanderer, animator, setThird, standAt, pickTime, timings, view: null, wind, THREE, renderer, scene, camera, field, frame, sky, trees, farWoods, stones, player, keys, tick, setHour, setWind, fromValley, ready: true };
+window.__tg = { sounds, walker, follow, input, wanderer, animator, setThird, standAt, pickTime, timings, view: null, wind, THREE, renderer, scene, camera, field, frame, sky, trees, farWoods, stones, player, keys, tick, setHour, setWind, fromValley, director, cast, props, city, g, ready: true };
 
 // ---- the loop's switch ----------------------------------------------------------------------------------------
 let last = 0;
@@ -707,3 +842,21 @@ document.body.classList.add('ready');
 block.ready();
 // for the measuring tools
 window.__block = { ready: true, block, timings };
+
+// the story begins: straight away for a test (?auto) or a chosen beat (?beat=a2), else from the title
+{
+  const chosen = params.get('beat');
+  ui.fade(1, 0);
+  if (g.auto || chosen) director.play(chosen ?? 'a1');
+  else {
+    ui.fade(0, 0);
+    document.body.classList.add('menu');
+    const saved = director.saved();
+    const choice = await ui.title({ resume: saved?.label });
+    document.body.classList.remove('menu');
+    ui.fade(1, 0.6);
+    sounds.start();
+    canvas.requestPointerLock?.()?.catch?.(() => {});
+    director.play(choice === 'continue' ? saved.id : 'a1');
+  }
+}

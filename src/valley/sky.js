@@ -87,6 +87,40 @@ const KEYS = [
   },
 ];
 
+// Night, as a painter does it for a film: not black but a deep blue world under a moon, the walls pale with its
+// light, the shadows ink-blue, the windows warm. (The moon takes the sun's place in every shader.)
+const NIGHT = {
+  e: 40,
+  sun: [0.5, 0.62, 0.95],
+  amb: [0.05, 0.08, 0.18],
+  bounce: [0.02, 0.022, 0.035],
+  zenith: [0.005, 0.012, 0.045],
+  mid: [0.018, 0.035, 0.1],
+  horizon: [0.05, 0.075, 0.15],
+  glow: [0.25, 0.3, 0.45],
+  fog: [0.035, 0.05, 0.11],
+  fogSun: [0.08, 0.11, 0.2],
+  haze: 0.00024,
+  cloudLit: [0.3, 0.36, 0.52],
+  cloudMid: [0.12, 0.16, 0.27],
+  cloudShade: [0.05, 0.07, 0.14],
+  cloudUnder: [0.03, 0.05, 0.1],
+  exposure: 1.35,
+};
+/** From this hour on it is night. */
+export const NIGHTFALL = 21;
+
+/** The moon: high, off to the right of the way to the city, so its light falls on the walls you walk towards. */
+function moonAt(out) {
+  const [dx, dz] = HERO;
+  const right = THREE.MathUtils.degToRad(-65);
+  const el = THREE.MathUtils.degToRad(NIGHT.e);
+  const hx = Math.cos(right) * dx + Math.sin(right) * dz;
+  const hz = Math.cos(right) * dz - Math.sin(right) * dx;
+  out.set(hx * Math.cos(el), Math.sin(el), hz * Math.cos(el)).normalize();
+  return NIGHT.e;
+}
+
 function blend(e) {
   let a = KEYS[0];
   let b = KEYS[KEYS.length - 1];
@@ -144,6 +178,7 @@ uniform samplerCube tClouds;
 uniform sampler2D tBack0, tBack1, tBack2;
 uniform vec3 uBankLit, uBankShade;
 uniform vec2 uBackdropEl;
+uniform float uNight;
 
 void main() {
   vec3 d = normalize(vDir);
@@ -151,7 +186,16 @@ void main() {
   vec3 col = mix(uHorizon, uMid, smoothstep(0.0, 0.3, pow(h, 0.8)));
   col = mix(col, uZenith, smoothstep(0.18, 0.85, h));
   float sd = max(dot(d, uSunDir), 0.0);
-  col += uGlow * (pow(sd, 6.0) * 0.05 + pow(sd, 90.0) * 0.3 + pow(sd, 1400.0) * 1.4) + uSunColor * smoothstep(0.99988, 0.99996, sd) * 8.0;
+  col += uGlow * (pow(sd, 6.0) * 0.05 + pow(sd, 90.0) * 0.3 + pow(sd, 1400.0) * 1.4);
+  // the sun's disc, or by night the moon's: bigger, pale, and soft at its edge
+  col += mix(uSunColor * smoothstep(0.99988, 0.99996, sd) * 8.0, vec3(2.6, 2.55, 2.3) * smoothstep(0.99965, 0.9998, sd), uNight);
+  // stars, by night: a few bright, many faint, fading to the haze at the horizon
+  if (uNight > 0.0) {
+    vec3 cell = floor(d * 260.0);
+    float h = hash12(cell.xy + cell.z * 17.31);
+    float star = step(0.9965, h) * (0.4 + 2.2 * pow(hash12(cell.yz + 3.7), 6.0));
+    col += vec3(0.9, 0.92, 1.0) * star * uNight * smoothstep(0.02, 0.25, d.y);
+  }
   vec4 c = texture(tClouds, d);
   // towards the sun a cloud's edge is lit through
   c.rgb += uGlow * pow(sd, 40.0) * 0.5 * c.a * (1.0 - c.a) * 4.0;
@@ -234,6 +278,7 @@ export function createSky(renderer, field, { parts = null, ...options } = {}) {
     uBackdropEl: { value: new THREE.Vector2(backdrop.el[0], backdrop.el[1]) },
     uBankLit: { value: new THREE.Color() },
     uBankShade: { value: new THREE.Color() },
+    uNight: { value: 0 },
   };
   const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: vertex, fragmentShader: fragment, uniforms, side: THREE.BackSide, depthWrite: false, depthTest: true });
   const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 4), material);
@@ -249,6 +294,8 @@ export function createSky(renderer, field, { parts = null, ...options } = {}) {
     backdrop,
     hour: 15.5,
     exposure: 1,
+    /** 1 by night, else 0. */
+    night: 0,
     sunDir,
     elevation: 0,
     /**
@@ -257,9 +304,11 @@ export function createSky(renderer, field, { parts = null, ...options } = {}) {
      */
     setHour(hour, soft = false) {
       sky.hour = hour;
-      const e = sunAt(hour, sunDir);
+      sky.night = hour >= NIGHTFALL ? 1 : 0;
+      uniforms.uNight.value = sky.night;
+      const e = sky.night ? moonAt(sunDir) : sunAt(hour, sunDir);
       sky.elevation = e;
-      const k = blend(e);
+      const k = sky.night ? NIGHT : blend(e);
       field.setLight({
         sunDir,
         sunColor: c.sun.setRGB(...k.sun),
@@ -268,7 +317,7 @@ export function createSky(renderer, field, { parts = null, ...options } = {}) {
         fogColor: c.fog.setRGB(...k.fog),
         fogSunColor: c.fogSun.setRGB(...k.fogSun),
         fogDensity: k.haze,
-        cloudShade: 0.15,
+        cloudShade: sky.night ? 0.05 : 0.15,
       });
       uniforms.uZenith.value.setRGB(...k.zenith);
       uniforms.uMid.value.setRGB(...k.mid);

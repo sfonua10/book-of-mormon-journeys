@@ -23,6 +23,7 @@ in vec3 vBind;
 in float vFold;
 in vec2 vCloth;
 uniform vec3 uTrim;
+uniform float uGlow;   // 0, or towards 1 for one who shines (the angel)
 layout(location = 0) out vec4 outC;
 void main() {
   vec3 N = normalize(vN);
@@ -60,6 +61,7 @@ void main() {
   // three tones in all: in the light, in the shade, and the deep of a fold
   vec3 col = mix(shadePaint * sky, litPaint * sun, lit * (1.0 - deep));
   col = mix(col, shadePaint * sky * vec3(0.64, 0.64, 0.8), deep * (1.0 - lit));
+  col = mix(col, vec3(1.9, 1.85, 1.7) * (0.85 + 0.15 * lit), uGlow);
   outC = vec4(applyFog(col, vWorld), lower ? uInk.y : uInk.x);
 }
 `;
@@ -108,30 +110,36 @@ void main() {
 
 // What he wears: [in the light, in the shade], as paint. The shade is a colour of its own, cooler and deeper, not
 // the light one made darker.
+// (Nephi's, by default: a blue mantle over a long cream tunic, a head cloth, sandals. The model's shirt and trousers
+// are painted one colour, so they read as one long garment.)
 export const CLOTHES = {
-  CLOAK: [[0.14, 0.32, 0.64], [0.07, 0.13, 0.4]],
-  HAT: [[0.95, 0.74, 0.34], [0.66, 0.46, 0.26]],
-  SHIRT: [[0.92, 0.86, 0.72], [0.52, 0.52, 0.66]],
-  TROUSERS: [[0.5, 0.33, 0.2], [0.27, 0.17, 0.14]],
+  CLOAK: [[0.16, 0.3, 0.56], [0.08, 0.13, 0.38]],
+  HAT: [[0.92, 0.88, 0.78], [0.56, 0.54, 0.62]],
+  SHIRT: [[0.9, 0.84, 0.7], [0.52, 0.5, 0.6]],
+  TROUSERS: [[0.86, 0.8, 0.66], [0.5, 0.47, 0.56]],
+  TRIM: [[0.95, 0.78, 0.4], [0.62, 0.5, 0.42]],
   SKIN: [[0.95, 0.68, 0.5], [0.62, 0.36, 0.3]],
   BOOTS: [[0.3, 0.19, 0.12], [0.15, 0.09, 0.08]],
   HAIR: [[0.24, 0.15, 0.09], [0.11, 0.07, 0.07]],
+  BEARD: [[0.2, 0.13, 0.08], [0.1, 0.07, 0.06]],
   EYES: [[0.08, 0.06, 0.06], [0.06, 0.05, 0.06]],
 };
 
 // The alpha each part writes: its number for the line. Two parts with different numbers get a line between them;
 // all of them are below anything else in the valley, so the line is only ever round him.
-const INK = { CLOAK: 0.03, HAT: 0.06, HAIR: 0.09, BOOTS: 0.12, TROUSERS: 0.15, SHIRT: 0.18, SKIN: 0.21, EYES: 0.09 };
+const INK = { CLOAK: 0.03, HAT: 0.06, HAIR: 0.09, BOOTS: 0.12, TROUSERS: 0.15, SHIRT: 0.18, SKIN: 0.21, EYES: 0.09, BEARD: 0.09 };
 
 /**
  * @param field the valley's meadow: its uniforms are the light he stands in
  * @param onProgress 0 to 1 as his files arrive
  * @param clothes any of CLOTHES, to dress him otherwise
  */
-export async function createWanderer(field, onProgress, clothes = {}) {
-  const palette = { ...CLOTHES, ...clothes };
-  const paint = (upper, { skinned = false, lower = upper, split = -10, inside = 0 } = {}) =>
-    new THREE.ShaderMaterial({
+export async function createWanderer(field, onProgress, clothes = {}, { man: given = null, beard = false } = {}) {
+  let palette = { ...CLOTHES, ...clothes };
+  const glow = { value: 0 };
+  const painted = [];
+  const paint = (upper, { skinned = false, lower = upper, split = -10, inside = 0 } = {}) => {
+    const material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
       side: THREE.DoubleSide,
       uniforms: {
@@ -143,13 +151,17 @@ export async function createWanderer(field, onProgress, clothes = {}) {
         uSplit: { value: split },
         uInk: { value: new THREE.Vector2(INK[upper], INK[lower]) },
         uInside: { value: inside },
-        uTrim: { value: new THREE.Color(0.95, 0.78, 0.4) },
+        uTrim: { value: new THREE.Color(...palette.TRIM[0]) },
+        uGlow: glow,
       },
       vertexShader: skinned ? skinnedVertex : plainVertex,
       fragmentShader: fragment,
     });
+    painted.push({ material, upper, lower });
+    return material;
+  };
 
-  const man = await loadMan({ base: './figure/', onProgress });
+  const man = given ?? (await loadMan({ base: './figure/', onProgress }));
   for (const mesh of man.meshes) {
     const name = `${mesh.name} ${mesh.material?.name ?? ''}`;
     if (/eyebrow|eyelash/.test(name)) {
@@ -170,8 +182,18 @@ export async function createWanderer(field, onProgress, clothes = {}) {
 
   // the hat: a low crown and a wide brim, set on while he still stands in the pose he was made in
   man.object.updateMatrixWorld(true);
-  const profile = [[0, 0.15], [0.05, 0.143], [0.095, 0.11], [0.118, 0.05], [0.125, 0.0], [0.21, -0.035], [0.3, -0.075], [0.37, -0.105]].map(([r, y]) => new THREE.Vector2(r, y));
-  const hat = new THREE.Mesh(new THREE.LatheGeometry(profile, 28), paint('HAT'));
+  // (a head cloth, in place of the valley's straw hat: close over the crown, falling to the neck behind)
+  const profile = [[0, 0.135], [0.05, 0.13], [0.092, 0.105], [0.112, 0.06], [0.118, 0.01], [0.12, -0.04]].map(([r, y]) => new THREE.Vector2(r, y));
+  const hat = new THREE.Mesh(new THREE.LatheGeometry(profile, 24), paint('HAT'));
+  const fall = [[0.122, -0.01], [0.128, -0.07], [0.135, -0.14], [0.15, -0.2]].map(([r, y]) => new THREE.Vector2(r, y));
+  hat.add(new THREE.Mesh(new THREE.LatheGeometry(fall, 14, Math.PI * 0.42, Math.PI * 1.16), hat.material));
+  if (beard) {
+    // a full beard: a rounded mass under the jaw, the hair's colour
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), paint('BEARD'));
+    b.scale.set(1.05, 1.2, 0.8);
+    b.position.set(0, -0.2, 0.075);
+    hat.add(b);
+  }
   hat.position.set(0, 1.805, -0.012);
   hat.rotation.x = -0.1;
   man.object.add(hat);
@@ -209,7 +231,22 @@ export async function createWanderer(field, onProgress, clothes = {}) {
     man,
     hat,
     cloak,
+    cloakMesh,
     group,
+    /** How much he shines: 0 for a man, towards 1 for an angel. */
+    glow,
+    /** Puts other clothes on him (any of CLOTHES' parts). */
+    dress(clothes) {
+      palette = { ...palette, ...clothes };
+      for (const { material, upper, lower } of painted) {
+        const u = material.uniforms;
+        u.uLit.value.setRGB(...palette[upper][0]);
+        u.uShade.value.setRGB(...palette[upper][1]);
+        u.uLit2.value.setRGB(...palette[lower][0]);
+        u.uShade2.value.setRGB(...palette[lower][1]);
+        u.uTrim.value.setRGB(...palette.TRIM[0]);
+      }
+    },
     /** After he has moved: the cloth. `air(x, y, z, out)` is the wind there, `ground(x, z)` the land's height. */
     update(dt, air, ground) {
       cloak.update(dt, air, ground);

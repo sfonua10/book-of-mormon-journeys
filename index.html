@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Painted valley</title>
+    <title>I Will Go and Do</title>
     <link rel="icon" href="data:," />
     <style>
       html,
@@ -73,18 +73,21 @@
       .ready:not(.playing) #start {
         display: grid;
       }
+      .menu #start {
+        display: none !important;
+      }
     </style>
   </head>
   <body>
     <canvas id="view"></canvas>
     <div id="start">
       <div>
-        <b>Click to walk</b>
-        <span>W A S D · Shift to sprint · Alt to walk · V first person · T for time of day</span>
+        <b>Click to continue</b>
+        <span>W A S D to walk · Shift to run · Mouse to look · E to act</span>
       </div>
     </div>
     <div id="note"></div>
-    <div id="loading">Painted valley</div>
+    <div id="loading">I Will Go and Do</div>
     <script type="module" src="./src/valley/main.js"></script>
   </body>
 </html>

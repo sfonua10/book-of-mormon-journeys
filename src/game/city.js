@@ -478,3 +478,80 @@ export function addCityColliders(RAPIER, physics, solids) {
     );
   }
 }
+
+/** The riches and the plates: small things made the city's way, each its own mesh, put where the story wants them. */
+export function createProps(city, heightAt) {
+  const GOLD = [1.0, 0.76, 0.28];
+  const SILVER = [0.86, 0.88, 0.92];
+  const BRASS = [0.92, 0.66, 0.3];
+  const make = (fill) => {
+    const b = builder();
+    fill(b);
+    const mesh = new THREE.Mesh(b.build(), city.mesh.material);
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    return mesh;
+  };
+  const kinds = {
+    // a chest of gold, its lid off and the gold heaped in it
+    gold: make((b) => {
+      b.box(-0.45, 0.45, -0.3, 0.3, 0, 0.5, { part: PART.WOOD, colour: WOOD, seed: 0.3, solid: false, roofPart: PART.GOLD, roofColour: GOLD });
+      b.box(-0.36, 0.36, -0.22, 0.22, 0.5, 0.62, { part: PART.GOLD, colour: GOLD, seed: 0.31, solid: false, roofPart: PART.GOLD, roofColour: GOLD });
+    }),
+    // silver vessels on a low stand
+    silver: make((b) => {
+      b.box(-0.55, 0.55, -0.35, 0.35, 0, 0.35, { part: PART.WOOD, colour: WOOD, seed: 0.4, solid: false });
+      for (const [u, v, h] of [[-0.3, -0.1, 0.42], [0.05, 0.12, 0.3], [0.32, -0.12, 0.36]]) {
+        b.box(u - 0.11, u + 0.11, v - 0.11, v + 0.11, 0.35, 0.35 + h, { part: PART.GOLD, colour: SILVER, seed: 0.41, solid: false, roofPart: PART.GOLD, roofColour: SILVER });
+      }
+    }),
+    // fine cloth, folded, and a small box of gold on it
+    precious: make((b) => {
+      b.box(-0.5, 0.5, -0.35, 0.35, 0, 0.22, { part: PART.CLOTH, colour: [0.55, 0.16, 0.36], seed: 0.5, solid: false, roofPart: PART.CLOTH, roofColour: [0.62, 0.2, 0.4] });
+      b.box(-0.45, 0.4, -0.3, 0.3, 0.22, 0.36, { part: PART.CLOTH, colour: [0.2, 0.32, 0.6], seed: 0.51, solid: false, roofPart: PART.CLOTH, roofColour: [0.24, 0.36, 0.64] });
+      b.box(-0.15, 0.15, -0.12, 0.12, 0.36, 0.52, { part: PART.GOLD, colour: GOLD, seed: 0.52, solid: false, roofPart: PART.GOLD, roofColour: GOLD });
+    }),
+    // the plates of brass: a thick stack of thin leaves, bound
+    plates: make((b) => {
+      b.box(-0.17, 0.17, -0.12, 0.12, 0, 0.12, { part: PART.GOLD, colour: BRASS, seed: 0.6, solid: false, roofPart: PART.GOLD, roofColour: BRASS });
+      for (const u of [-0.1, 0.1]) b.box(u - 0.015, u + 0.015, -0.125, 0.125, -0.005, 0.125, { part: PART.WOOD, colour: [0.3, 0.2, 0.12], seed: 0.61, solid: false });
+    }),
+  };
+  const group = new THREE.Group();
+  for (const m of Object.values(kinds)) group.add(m);
+  const carried = new Map();
+  return {
+    group,
+    /** Sets a thing down at (x, z), on the ground. */
+    show(name, [x, z]) {
+      carried.delete(name);
+      const m = kinds[name];
+      m.position.set(x, heightAt(x, z), z);
+      m.rotation.set(0, 0, 0);
+      m.visible = true;
+    },
+    hide(name) {
+      carried.delete(name);
+      kinds[name].visible = false;
+    },
+    /** Someone carries it in front of him (null to stop). */
+    carry(name, npc) {
+      if (!npc) return void carried.delete(name);
+      carried.set(name, npc);
+      kinds[name].visible = true;
+    },
+    reset() {
+      carried.clear();
+      for (const m of Object.values(kinds)) m.visible = false;
+    },
+    update() {
+      for (const [name, npc] of carried) {
+        const m = kinds[name];
+        m.visible = npc.visible;
+        m.position.set(npc.x + Math.sin(npc.yaw) * 0.32, heightAt(npc.x, npc.z) + 1.0, npc.z + Math.cos(npc.yaw) * 0.32);
+        // (props are built turned into the valley's frame: undo that, then face the way he does)
+        m.rotation.set(0, npc.yaw - Math.PI / 2 - TURN, 0);
+      }
+    },
+  };
+}
