@@ -8,7 +8,6 @@ import { CLOTHES, PEOPLE, story } from './story.js';
 
 export const GAME = {
   name: 'Book of Mormon Journeys',
-  line: 'Walk where they walked, read what they said, and see how the Lord prepared a way.',
   /** The start of every key kept in the browser. */
   save: 'bom-journeys',
 };

@@ -109,14 +109,28 @@ const CSS = /* css */ `
 .g-screen blockquote cite { display: block; font-style: normal; margin-top: 6px; color: var(--gold); font-size: 14px; font-variant: small-caps; }
 .g-screen { overflow-y: auto; }
 .g-screen .box { padding: 24px 0; }
-.g-screen .journeys { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 12px; text-align: left; }
-.g-screen .journeys li { padding: 16px 20px 18px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--gold); border-radius: 6px; }
+/* the list of journeys: plain, over the painting dimmed right down, so that the rows are what is looked at */
+#g-title { background: rgba(14, 10, 6, 0.88); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+#g-title h1 { font-size: 14px; letter-spacing: 0.34em; text-transform: uppercase; color: var(--gold); margin: 0; }
+.g-screen .journeys { list-style: none; margin: 26px 0 0; padding: 0; display: grid; gap: 10px; text-align: left; }
+.g-screen .journeys li {
+  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 20px; padding: 18px 22px;
+  border: 1px solid var(--line); border-radius: 6px; transition: border-color 0.15s, background 0.15s;
+}
+.g-screen .journeys li.open { cursor: pointer; background: rgba(244, 234, 214, 0.05); }
+.g-screen .journeys li.open:hover { border-color: var(--gold); background: rgba(227, 189, 109, 0.1); }
 .g-screen .journeys .no { color: var(--gold); font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; }
 .g-screen .journeys .done { letter-spacing: 0.1em; color: var(--ink); }
 .g-screen .journeys h2 { font-weight: normal; font-size: 26px; margin: 4px 0 2px; color: #fff; }
-.g-screen .journeys .about { font-size: 16px; line-height: 1.5; opacity: 0.9; }
-.g-screen .journeys button { margin: 14px 10px 0 0; }
-.g-screen .journeys .soon { border-left-color: var(--line); border-style: dashed; opacity: 0.6; }
+.g-screen .journeys .about { font-size: 15px; line-height: 1.5; opacity: 0.75; }
+.g-screen .journeys .go { display: grid; justify-items: center; gap: 8px; }
+.g-screen .journeys button { margin: 0; white-space: nowrap; }
+.g-screen .journeys .go button + button { border: 0; padding: 2px 6px; font-size: 14px; opacity: 0.75; text-decoration: underline; }
+.g-screen .journeys .soon { border-style: dashed; opacity: 0.5; }
+@media (max-width: 600px) {
+  .g-screen .journeys li { grid-template-columns: 1fr; }
+  .g-screen .journeys .go { justify-items: start; grid-auto-flow: column; justify-content: start; align-items: center; }
+}
 .g-screen .next { font-size: 15px; opacity: 0.75; }
 @media (max-width: 600px) {
   #g-card .text { font-size: 17px; }
@@ -225,31 +239,33 @@ export function createUI() {
      * released, done, resume }]: one that is released can be begun (or gone on with, from the act `resume` names);
      * one that is not is only told of. Resolves with { id, go: 'begin' | 'continue' } when a button is pressed.
      */
-    stories({ name, line, list }) {
+    stories({ name, list }) {
       const item = (s) => {
         const no = `Journey ${esc(s.number)}`;
         if (!s.released) {
           return `<li class="soon">
-            <div class="no">${no} · Coming next week</div>
-            <h2>${s.title ? esc(s.title) : 'A new journey'}</h2>
-            <div class="about">${s.ref ? esc(s.ref) : 'A new journey arrives each week.'}</div>
+            <div class="what">
+              <div class="no">${no} · Coming next week</div>
+              <h2>${s.title ? esc(s.title) : 'A new journey'}</h2>
+              ${s.ref ? `<div class="about">${esc(s.ref)}</div>` : ''}
+            </div>
           </li>`;
         }
         const go = s.resume
           ? `<button data-id="${esc(s.id)}" data-go="continue">Continue · ${esc(s.resume)}</button><button data-id="${esc(s.id)}" data-go="begin" class="plain">Start over</button>`
           : `<button data-id="${esc(s.id)}" data-go="begin"${s.done ? ' class="plain"' : ''}>${s.done ? 'Play again' : 'Begin'}</button>`;
-        return `<li>
-          <div class="no">${no} · ${esc(s.ref)}${s.done ? ' · <span class="done">✓ Finished</span>' : ''}</div>
-          <h2>${esc(s.title)}</h2>
-          <div class="about">${esc(s.blurb)}</div>
+        return `<li class="open">
+          <div class="what">
+            <div class="no">${no} · ${esc(s.ref)}${s.done ? ' · <span class="done">✓ Finished</span>' : ''}</div>
+            <h2>${esc(s.title)}</h2>
+            <div class="about">${esc(s.blurb)}</div>
+          </div>
           <div class="go">${go}</div>
         </li>`;
       };
       title.innerHTML = `<div class="box">
         <h1>${esc(name)}</h1>
-        <p>${esc(line)}</p>
         <ul class="journeys">${list.map(item).join('')}</ul>
-        <div class="keys">W A S D to walk · Shift to run · Mouse to look · E to act · Esc to pause</div>
       </div>`;
       title.classList.add('on');
       return new Promise((done) => {
@@ -257,6 +273,12 @@ export function createUI() {
           b.addEventListener('click', () => {
             title.classList.remove('on');
             done({ id: b.dataset.id, go: b.dataset.go });
+          });
+        }
+        // (a journey's whole row can be pressed, for its first button)
+        for (const li of title.querySelectorAll('li.open')) {
+          li.addEventListener('click', (e) => {
+            if (!e.target.closest('button')) li.querySelector('button').click();
           });
         }
         title.querySelector('button')?.focus();

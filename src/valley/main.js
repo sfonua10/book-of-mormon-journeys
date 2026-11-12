@@ -965,7 +965,6 @@ function openJourney(id, go) {
       document.body.classList.add('menu');
       pick = await ui.stories({
         name: GAME.name,
-        line: GAME.line,
         list: STORIES.map((s) => {
           const kept = s.released ? keeper(s) : null;
           // (this page's journey is asked of its director, which knows its beats: a place it has no beat for is none)
