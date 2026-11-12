@@ -712,7 +712,7 @@ export function story(g) {
         await c.verse('5:21');
         await c.verse('3:7');
         await c.fade(1, 2);
-        g.ui.end({ onAgain: () => location.reload() });
+        g.end();
       },
     },
   ];

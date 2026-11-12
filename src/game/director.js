@@ -2,33 +2,17 @@
 // Nephi to reach a place, for him to act on something, for a few seconds to pass. The waits are checked once a
 // frame from the game's loop, so the story and the painting keep the same clock (and a test can step both).
 //
-// The beat reached is kept in the browser, so a family can stop and come back to the same act.
+// The beat reached is kept in the browser (stories.js, keeper), so a family can stop and come back to the same act.
 // With ?auto the director plays itself: it walks Nephi to each place, reads each card and acts, for tests.
-
-const SAVE = 'nephi-plates:beat';
-const load = () => {
-  try {
-    return localStorage.getItem(SAVE);
-  } catch {
-    return null;
-  }
-};
-const save = (id) => {
-  try {
-    if (id) localStorage.setItem(SAVE, id);
-    else localStorage.removeItem(SAVE);
-  } catch {
-    // (no storage: the story just starts from the beginning next time)
-  }
-};
 
 /**
  * @param beats [{ id, act, label, setup(g), run(c, g) }] in order
  * @param ui createUI()
  * @param g the game: player, standAt, setHour, cast, ... (see main.js)
  * @param options.auto play itself
+ * @param options.keep the story's keeper (stories.js): where the beat reached is kept, and that it was finished
  */
-export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15 } = {}) {
+export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, keep = null } = {}) {
   let time = 0;
   const waits = [];
   let pressed = false;
@@ -206,12 +190,13 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15 } =
       if (i === start || current.scene) current.setup?.(g);
       // (a beat that does not open its own scene from the dark is shown at once)
       if (i === start && !current.scene) ui.fade(0, 1);
-      save(current.id);
+      keep?.keep(current.id, current.label);
       g.log(`beat ${current.id}`);
       await current.run(c, g);
     }
     ended = true;
-    save(null);
+    keep?.keep(null);
+    if (keep) keep.done = true;
     g.log('the end');
   }
 
@@ -235,12 +220,11 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15 } =
     auto,
     /** The beat a family could come back to, with its act's name, or null. */
     saved() {
-      const id = load();
-      const beat = beats.find((b) => b.id === id);
-      return beat ? { id, label: beat.label } : null;
+      const beat = beats.find((b) => b.id === keep?.place?.id);
+      return beat ? { id: beat.id, label: beat.label } : null;
     },
     forget() {
-      save(null);
+      keep?.keep(null);
     },
     play,
     update(dt) {

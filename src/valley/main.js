@@ -27,13 +27,16 @@ import { createMusic } from '../game/music.js';
 import { createTown, TOWN_CLOTHES, TOWNSFOLK } from '../game/town.js';
 import { cloneMan, createCast } from '../game/npc.js';
 import { reference, verses } from '../game/scripture.js';
-import { CLOTHES as STORY_CLOTHES, PEOPLE, story } from '../game/story.js';
+import { GAME, keeper, STORIES, storyById } from '../game/stories.js';
 import { createUI } from '../game/ui.js';
 import { loadMan } from '../figure/man.js';
 import { fromValley, heightAt, HERO, paint, START, tarnDistance } from './world.js';
 import { CITY, IN_CITY } from '../game/places.js';
 
 const params = new URLSearchParams(location.search);
+// the journey this page plays (?story=id): the first, if none is asked for
+const journey = storyById(params.get('story'));
+const { people: PEOPLE, clothes: STORY_CLOTHES } = journey;
 // how long each part of getting ready took, ms: for tests
 const timings = {};
 let lap = performance.now();
@@ -887,6 +890,10 @@ const g = {
   get guidance() {
     return guidance;
   },
+  /** The journey's end: its own words, and the ways on from there (the page is loaded afresh for either). */
+  end() {
+    ui.end({ copy: journey.end, onAgain: () => openJourney(journey.id, 'begin'), onBack: () => openJourney(null) });
+  },
   /** Whether the story holds Nephi still (a card is up). */
   get frozen() {
     return !!director?.frozen;
@@ -894,7 +901,7 @@ const g = {
 };
 g.town = createTown(g);
 guidance = createGuidance(g, ui);
-director = createDirector(story(g), ui, g, { auto: g.auto, autoRead: params.has('autoread') ? Number(params.get('autoread')) : 0.15 });
+director = createDirector(journey.beats(g), ui, g, { keep: keeper(journey), auto: g.auto, autoRead: params.has('autoread') ? Number(params.get('autoread')) : 0.15 });
 
 // for tests and filming: everything the page is made of, and a clock to drive by hand
 window.__tg = { sounds, walker, follow, input, wanderer, animator, setThird, standAt, pickTime, timings, view: null, wind, THREE, renderer, scene, camera, field, frame, sky, trees, farWoods, stones, player, keys, tick, setHour, setWind, fromValley, director, cast, props, city, g, ready: true };
@@ -928,20 +935,54 @@ block.ready();
 // for the measuring tools
 window.__block = { ready: true, block, timings };
 
-// the story begins: straight away for a test (?auto) or a chosen beat (?beat=a2), else from the title
+/** Loads the page afresh for a journey (`go`: 'begin' or 'continue'), or with none, for the list of them. */
+function openJourney(id, go) {
+  const to = new URL(location.href);
+  for (const name of ['story', 'go', 'beat', 'auto']) to.searchParams.delete(name);
+  if (id) {
+    to.searchParams.set('story', id);
+    to.searchParams.set('go', go);
+  }
+  location.assign(to);
+}
+
+// the story begins: straight away for a test (?auto), a chosen beat (?beat=a2) or a journey chosen on the page before
+// this one (?go=begin); else from the list of journeys
 {
   const chosen = params.get('beat');
+  const go = params.get('go');
   ui.fade(1, 0);
-  if (g.auto || chosen) director.play(chosen ?? 'a1');
+  if (g.auto || chosen) director.play(chosen ?? journey.first);
   else {
-    ui.fade(0, 0);
-    document.body.classList.add('menu');
-    const saved = director.saved();
-    const choice = await ui.title({ resume: saved?.label });
-    document.body.classList.remove('menu');
-    ui.fade(1, 0.6);
-    sounds.start();
-    canvas.requestPointerLock?.()?.catch?.(() => {});
-    director.play(choice === 'continue' ? saved.id : 'a1');
+    let pick = go === 'begin' || go === 'continue' ? { id: journey.id, go } : null;
+    if (pick) {
+      // (so that loading the page again shows the list, not this journey from its beginning)
+      const bare = new URL(location.href);
+      bare.searchParams.delete('go');
+      history.replaceState(null, '', bare);
+    } else {
+      ui.fade(0, 0);
+      document.body.classList.add('menu');
+      pick = await ui.stories({
+        name: GAME.name,
+        line: GAME.line,
+        list: STORIES.map((s) => {
+          const kept = s.released ? keeper(s) : null;
+          // (this page's journey is asked of its director, which knows its beats: a place it has no beat for is none)
+          const place = s === journey ? director.saved() : kept?.place;
+          return { ...s, done: !!kept?.done, resume: place ? (place.label ?? 'where you left off') : null };
+        }),
+      });
+      // another journey than the one this page has made ready: load the page for it
+      if (pick.id !== journey.id) openJourney(pick.id, pick.go);
+      document.body.classList.remove('menu');
+      ui.fade(1, 0.6);
+      canvas.requestPointerLock?.()?.catch?.(() => {});
+    }
+    if (pick.id === journey.id) {
+      sounds.start();
+      const saved = director.saved();
+      director.play(pick.go === 'continue' && saved ? saved.id : journey.first);
+    }
   }
 }

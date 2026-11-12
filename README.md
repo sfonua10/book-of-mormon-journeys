@@ -1,4 +1,10 @@
-# I Will Go and Do
+# Book of Mormon Journeys
+
+Painted walking games through the Book of Mormon, one journey at a time. A new journey is added each week; the first screen lists them, with the next one shown as coming.
+
+Adding a journey: write its story beside `src/game/story.js`, give it an entry in `src/game/stories.js` with `released: true`, and move the teaser entry after it. Each journey keeps its own place in the browser.
+
+## Journey 1: I Will Go and Do
 
 A short painted walking game through **1 Nephi 3–4**: Nephi and his brothers go back to Jerusalem for the plates of brass. You walk where they walked and read what they said, in the scripture's own words, at the moment each thing happens. The aim is to help families understand the account and see how the Lord prepared a way.
 

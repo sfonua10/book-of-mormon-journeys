@@ -1,5 +1,5 @@
 // What is drawn over the painting: the scripture cards, a line saying what to do, the prompt to act, the fades
-// between scenes, each act's title, and the title and end screens. Plain DOM, styled here, in the valley's serif.
+// between scenes, each act's title, and the screens: the journeys to choose from, and a journey's end. Plain DOM, styled here, in the valley's serif.
 
 const CSS = /* css */ `
 :root {
@@ -107,6 +107,17 @@ const CSS = /* css */ `
 .g-screen a { color: var(--gold); }
 .g-screen blockquote { margin: 18px auto; font-style: italic; font-size: 18px; line-height: 1.55; }
 .g-screen blockquote cite { display: block; font-style: normal; margin-top: 6px; color: var(--gold); font-size: 14px; font-variant: small-caps; }
+.g-screen { overflow-y: auto; }
+.g-screen .box { padding: 24px 0; }
+.g-screen .journeys { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 12px; text-align: left; }
+.g-screen .journeys li { padding: 16px 20px 18px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--gold); border-radius: 6px; }
+.g-screen .journeys .no { color: var(--gold); font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; }
+.g-screen .journeys .done { letter-spacing: 0.1em; color: var(--ink); }
+.g-screen .journeys h2 { font-weight: normal; font-size: 26px; margin: 4px 0 2px; color: #fff; }
+.g-screen .journeys .about { font-size: 16px; line-height: 1.5; opacity: 0.9; }
+.g-screen .journeys button { margin: 14px 10px 0 0; }
+.g-screen .journeys .soon { border-left-color: var(--line); border-style: dashed; opacity: 0.6; }
+.g-screen .next { font-size: 15px; opacity: 0.75; }
 @media (max-width: 600px) {
   #g-card .text { font-size: 17px; }
   #g-card { padding: 16px 18px 12px; }
@@ -209,13 +220,35 @@ export function createUI() {
       chapter.innerHTML = `<div class="act">${esc(act)}</div><div class="name">${esc(name)}</div><div class="sub">${esc(sub)}</div>`;
       chapter.classList.add('on');
     },
-    /** The title screen. Resolves with 'begin' or 'continue' when a button is pressed. */
-    title({ resume = null } = {}) {
+    /**
+     * The first screen: the journeys of the game, to choose from. `list` is [{ id, number, title, ref, blurb,
+     * released, done, resume }]: one that is released can be begun (or gone on with, from the act `resume` names);
+     * one that is not is only told of. Resolves with { id, go: 'begin' | 'continue' } when a button is pressed.
+     */
+    stories({ name, line, list }) {
+      const item = (s) => {
+        const no = `Journey ${esc(s.number)}`;
+        if (!s.released) {
+          return `<li class="soon">
+            <div class="no">${no} · Coming next week</div>
+            <h2>${s.title ? esc(s.title) : 'A new journey'}</h2>
+            <div class="about">${s.ref ? esc(s.ref) : 'A new journey arrives each week.'}</div>
+          </li>`;
+        }
+        const go = s.resume
+          ? `<button data-id="${esc(s.id)}" data-go="continue">Continue · ${esc(s.resume)}</button><button data-id="${esc(s.id)}" data-go="begin" class="plain">Start over</button>`
+          : `<button data-id="${esc(s.id)}" data-go="begin"${s.done ? ' class="plain"' : ''}>${s.done ? 'Play again' : 'Begin'}</button>`;
+        return `<li>
+          <div class="no">${no} · ${esc(s.ref)}${s.done ? ' · <span class="done">✓ Finished</span>' : ''}</div>
+          <h2>${esc(s.title)}</h2>
+          <div class="about">${esc(s.blurb)}</div>
+          <div class="go">${go}</div>
+        </li>`;
+      };
       title.innerHTML = `<div class="box">
-        <div class="sub">A journey through 1 Nephi 3–4</div>
-        <h1>I Will Go and Do</h1>
-        <p>Nephi and his brothers return to Jerusalem for the plates of brass. Walk where they walked, read what they said, and see how the Lord prepared a way.</p>
-        <div>${resume ? `<button data-go="continue">Continue · ${esc(resume)}</button><button data-go="begin" class="plain">Start over</button>` : `<button data-go="begin">Begin</button>`}</div>
+        <h1>${esc(name)}</h1>
+        <p>${esc(line)}</p>
+        <ul class="journeys">${list.map(item).join('')}</ul>
         <div class="keys">W A S D to walk · Shift to run · Mouse to look · E to act · Esc to pause</div>
       </div>`;
       title.classList.add('on');
@@ -223,7 +256,7 @@ export function createUI() {
         for (const b of title.querySelectorAll('button')) {
           b.addEventListener('click', () => {
             title.classList.remove('on');
-            done(b.dataset.go);
+            done({ id: b.dataset.id, go: b.dataset.go });
           });
         }
         title.querySelector('button')?.focus();
@@ -232,21 +265,30 @@ export function createUI() {
     hideTitle() {
       title.classList.remove('on');
     },
-    /** The end: what was read, where to read more, something to talk about. */
-    end({ onAgain }) {
+    /**
+     * The end of a journey: what was read, where to read more, something to talk about. `copy` is the story's own
+     * (stories.js, end): { heading, quote, cite, talk, links: [[name, url]] }.
+     */
+    end({ copy, onAgain, onBack }) {
+      const links = copy.links.map(([name, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a>`);
+      const listed = links.length > 1 ? `${links.slice(0, -1).join(', ')} and ${links.at(-1)}` : links.join('');
       end.innerHTML = `<div class="box">
         <div class="sub">The end of the journey</div>
-        <h1>The Lord Prepared a Way</h1>
-        <blockquote>“I know that the Lord giveth no commandments unto the children of men, save he shall prepare a way for them that they may accomplish the thing which he commandeth them.”<cite>1 Nephi 3:7</cite></blockquote>
-        <p>To talk about together: Nephi and his brothers tried three times. What did Nephi know about the Lord that helped him keep going? When has the Lord prepared a way for you?</p>
-        <p>Read the whole account in <a href="https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/3?lang=eng" target="_blank" rel="noopener">1 Nephi 3</a>, <a href="https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/4?lang=eng" target="_blank" rel="noopener">1 Nephi 4</a> and <a href="https://www.churchofjesuschrist.org/study/scriptures/bofm/1-ne/5?lang=eng" target="_blank" rel="noopener">1 Nephi 5</a>.</p>
-        <button data-go="again" class="plain">Play again</button>
+        <h1>${esc(copy.heading)}</h1>
+        <blockquote>${esc(copy.quote)}<cite>${esc(copy.cite)}</cite></blockquote>
+        <p>To talk about together: ${esc(copy.talk)}</p>
+        ${listed ? `<p>Read the whole account in ${listed}.</p>` : ''}
+        <p class="next">The next journey arrives next week.</p>
+        <button data-go="back">Back to journeys</button><button data-go="again" class="plain">Play again</button>
       </div>`;
       end.classList.add('on');
-      end.querySelector('button').addEventListener('click', () => {
-        end.classList.remove('on');
-        onAgain();
-      });
+      for (const b of end.querySelectorAll('button')) {
+        b.addEventListener('click', () => {
+          end.classList.remove('on');
+          (b.dataset.go === 'back' ? onBack : onAgain)();
+        });
+      }
+      end.querySelector('button').focus();
     },
   };
 }
