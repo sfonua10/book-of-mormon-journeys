@@ -103,6 +103,14 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.12, 40000);
 camera.rotation.order = 'YXZ';
+// Listened for from the start, not once loaded: the page may go fullscreen while the valley is still being made.
+// The frame's targets follow the renderer's size on their own, each time it draws.
+function fitView() {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', fitView);
 
 const groundTextures = loadGroundTextures(renderer, './textures/');
 // The sky's clouds and mountains need nothing from the land and are the graphics card's work, most of the wait on
@@ -569,11 +577,6 @@ document.addEventListener('keydown', (e) => {
 });
 document.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
-window.addEventListener('resize', () => {
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-});
 
 /** Resolves once the GPU has done everything asked of it so far, without holding the page up while it does. */
 function gpuDone() {
@@ -690,6 +693,7 @@ function run() {
   );
 }
 
+fitView();
 loaded = true;
 run();
 $('loading').remove();
