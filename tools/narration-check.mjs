@@ -71,8 +71,7 @@ try {
     await page.goto(`http://127.0.0.1:${server.address().port}/?step&dpr=1`);
     await page.waitForFunction(() => window.__tg?.ready, null, { timeout: 120000 });
     await page.waitForSelector('#n-voice.has', { state: 'attached', timeout: 10000 });
-    await page.tap('#g-title button[data-work="bom"]');
-    await page.tap('#g-title button[data-go]');
+    await page.tap('#g-title button[data-id="plates-of-brass"][data-go]');
     return run(20, 'card');
   };
 
@@ -90,15 +89,13 @@ try {
 
   await page.goto(`http://127.0.0.1:${server.address().port}/?step&dpr=1`);
   await page.waitForFunction(() => window.__tg?.ready, null, { timeout: 120000 });
-  await page.tap('#g-title button[data-work="bom"]');
-    await page.tap('#g-title button[data-go]');
+  await page.tap('#g-title button[data-id="plates-of-brass"][data-go]');
   await run(20, 'card');
   await page.tap('#n-voice');
   check((await page.textContent('#n-voice')) === 'Voice off', 'the button turns the reading off');
   await page.reload();
   await page.waitForFunction(() => window.__tg?.ready, null, { timeout: 120000 });
-  await page.tap('#g-title button[data-work="bom"]');
-    await page.tap('#g-title button[data-go]');
+  await page.tap('#g-title button[data-id="plates-of-brass"][data-go]');
   await run(20, 'card');
   check((await page.textContent('#n-voice')) === 'Voice off', 'and it is remembered');
   s = await run(6, 'gone');

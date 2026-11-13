@@ -152,10 +152,12 @@ export function createHorizon(field, inner = 512) {
       positions[p++] = z;
     }
   }
+  // (its triangles are listed a spoke at a time, round from the first, so that any slice of the ring is one run of
+  // the list: see `cull`)
   const indices = new Uint32Array(rings * around * 6);
   let q = 0;
-  for (let k = 0; k < rings; k++) {
-    for (let i = 0; i < around; i++) {
+  for (let i = 0; i < around; i++) {
+    for (let k = 0; k < rings; k++) {
       const a = k * around + i;
       const b = k * around + ((i + 1) % around);
       indices[q++] = a;
@@ -173,7 +175,69 @@ export function createHorizon(field, inner = 512) {
   const far = farMap();
   const uniforms = { ...field.uniforms, tFar: { value: far }, uFarInv: { value: 1 / (REACH * 2) }, uAlong: { value: new THREE.Vector2(HERO[0], HERO[1]) } };
   const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: vertex, fragmentShader: fragment, uniforms, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 12 });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.frustumCulled = false;
-  return mesh;
+
+  // The ring lies all round the eye, and the eye sees a third of it at most: only the part in view is drawn. It is
+  // cut into slices like a cake's, each with the box that holds it; the slices in view are one run round the ring
+  // (or two, where the run goes past the list's end), and each of two meshes draws one run of the same triangles.
+  const SLICES = 48;
+  const per = around / SLICES;
+  const boxes = [];
+  const point = new THREE.Vector3();
+  for (let slice = 0; slice < SLICES; slice++) {
+    const box = new THREE.Box3();
+    for (let i = slice * per; i <= (slice + 1) * per; i++) {
+      for (let k = 0; k <= rings; k++) box.expandByPoint(point.fromArray(positions, (k * around + (i % around)) * 3));
+    }
+    boxes.push(box);
+  }
+  const run = () => {
+    const part = new THREE.BufferGeometry();
+    for (const [name, attribute] of Object.entries(geometry.attributes)) part.setAttribute(name, attribute);
+    part.setIndex(geometry.index);
+    const mesh = new THREE.Mesh(part, material);
+    mesh.frustumCulled = false;
+    return mesh;
+  };
+  const first = run();
+  const second = run();
+  second.visible = false;
+  const group = new THREE.Group();
+  group.add(first, second);
+  const frustum = new THREE.Frustum();
+  const seen = new THREE.Matrix4();
+  const inView = new Array(SLICES).fill(true);
+  const sliceIndices = per * rings * 6;
+  /** Draws only the part of the ring that is in view. Call each frame, once the camera is where it is drawn from. */
+  group.cull = (camera) => {
+    camera.updateMatrixWorld();
+    frustum.setFromProjectionMatrix(seen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    let any = false;
+    for (let slice = 0; slice < SLICES; slice++) {
+      inView[slice] = frustum.intersectsBox(boxes[slice]);
+      any ||= inView[slice];
+    }
+    first.visible = any;
+    second.visible = false;
+    if (!any) return;
+    // the longest run of slices out of view (round the ring): what is drawn is all the rest, from `from` on
+    let gap = 0;
+    let from = 0;
+    for (let slice = 0; slice < SLICES; slice++) {
+      if (inView[slice]) continue;
+      let length = 1;
+      while (length < SLICES && !inView[(slice + length) % SLICES]) length++;
+      if (length > gap) {
+        gap = length;
+        from = (slice + length) % SLICES;
+      }
+    }
+    const count = SLICES - gap;
+    const here = Math.min(count, SLICES - from);
+    first.geometry.setDrawRange(from * sliceIndices, here * sliceIndices);
+    if (count > here) {
+      second.visible = true;
+      second.geometry.setDrawRange(0, (count - here) * sliceIndices);
+    }
+  };
+  return group;
 }

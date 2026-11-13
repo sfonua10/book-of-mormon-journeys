@@ -47,7 +47,17 @@ export class Cloak {
         if (j + 2 < ROWS) link(k, k + 2 * COLS, 0.25);
       }
     }
-    this.links = new Float32Array(links);
+    // (as lists of their own, for the sums: where each thread's two ends are in `p`, its length and stiffness, and
+    // how much of a correction each end takes. A thread between two points of the collar is left out: both are
+    // pinned, and it moves neither.)
+    const kept = [];
+    for (let l = 0; l < links.length; l += 4) if (links[l] >= COLS || links[l + 1] >= COLS) kept.push(l);
+    this.linkA = Int32Array.from(kept, (l) => links[l] * 3);
+    this.linkB = Int32Array.from(kept, (l) => links[l + 1] * 3);
+    this.linkRest = Float64Array.from(kept, (l) => Math.fround(links[l + 2]));
+    this.linkStiff = Float64Array.from(kept, (l) => Math.fround(links[l + 3]));
+    this.linkWa = Float64Array.from(kept, (l) => (links[l] < COLS ? 0 : links[l + 1] < COLS ? 1 : 0.5));
+    this.linkWb = Float64Array.from(kept, (l) => (links[l + 1] < COLS ? 0 : links[l] < COLS ? 1 : 0.5));
 
     // the body the cloth lies on: [bone, bone, radius]
     this.sticks = [
@@ -57,6 +67,9 @@ export class Cloak {
     ];
     this.ends = new Float32Array(this.sticks.length * 6);
     this.endsBefore = new Float32Array(this.sticks.length * 6);
+    // each stick as it lies at this moment of the step: one end, the way to the other, that way's length squared,
+    // and how near the cloth may come
+    this.lie = new Float64Array(this.sticks.length * 8);
     this.a = new THREE.Vector3(); this.b = new THREE.Vector3(); this.c = new THREE.Vector3();
     this.X = new THREE.Vector3(); this.Y = new THREE.Vector3(); this.Z = new THREE.Vector3(); this.C = new THREE.Vector3();
   }
@@ -120,7 +133,8 @@ export class Cloak {
     const steps = Math.min(6, Math.floor(this.left / STEP));
     if (steps <= 0) return;
     this.left -= steps * STEP;
-    const { p, prev, normals, links, pins, pinsBefore, ends, endsBefore } = this;
+    const { p, prev, normals, pins, pinsBefore, linkA, linkB, linkRest, linkStiff, linkWa, linkWb } = this;
+    const threads = linkA.length;
     const wind = this.c;
     for (let s = 0; s < steps; s++) {
       const u = (s + 1) / steps;
@@ -134,7 +148,7 @@ export class Cloak {
           // the air it meets: the wind less its own speed, felt across the face of the cloth
           const rx = wind.x - vx / STEP, ry = wind.y - vy / STEP, rz = wind.z - vz / STEP;
           const nx = normals[k], ny = normals[k + 1], nz = normals[k + 2];
-          const speed = Math.hypot(rx, ry, rz);
+          const speed = Math.sqrt(rx * rx + ry * ry + rz * rz);
           // the air drags the cloth along with it, and sends ripples down it that grow toward the hem
           const flutter = Math.sin(this.time * 11 - j * 0.85 + i * 0.7) * 0.45 * speed * (j / ROWS);
           const ax = nx * flutter + rx * 1.45, ay = -9.8 + ny * flutter + ry * 0.5, az = nz * flutter + rz * 1.45;
@@ -144,17 +158,17 @@ export class Cloak {
       }
       for (let i = 0; i < COLS * 3; i++) p[i] = pinsBefore[i] + (pins[i] - pinsBefore[i]) * u;
       for (let it = 0; it < 7; it++) {
-        for (let l = 0; l < links.length; l += 4) {
-          const a = links[l] * 3, b = links[l + 1] * 3, rest = links[l + 2], stiff = links[l + 3];
+        // (this is most of the cloth's work, a hundred thousand threads a frame: so the plain square root, and
+        // nothing asked of a thread but its own numbers)
+        for (let l = 0; l < threads; l++) {
+          const a = linkA[l], b = linkB[l], rest = linkRest[l], stiff = linkStiff[l];
           const dx = p[b] - p[a], dy = p[b + 1] - p[a + 1], dz = p[b + 2] - p[a + 2];
-          const d = Math.hypot(dx, dy, dz) || 1e-6;
+          const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
           // threads pull when stretched and barely push when slack: cloth folds, it doesn't spring
-          let k = ((d - rest) / d) * (d > rest ? stiff : stiff * 0.12);
-          const pa = a < COLS * 3, pb = b < COLS * 3;
-          if (pa && pb) continue;
-          const wa = pa ? 0 : pb ? 1 : 0.5, wb = pb ? 0 : pa ? 1 : 0.5;
-          p[a] += dx * k * wa; p[a + 1] += dy * k * wa; p[a + 2] += dz * k * wa;
-          p[b] -= dx * k * wb; p[b + 1] -= dy * k * wb; p[b + 2] -= dz * k * wb;
+          const k = ((d - rest) / d) * (d > rest ? stiff : stiff * 0.12);
+          const ka = k * linkWa[l], kb = k * linkWb[l];
+          p[a] += dx * ka; p[a + 1] += dy * ka; p[a + 2] += dz * ka;
+          p[b] -= dx * kb; p[b + 1] -= dy * kb; p[b + 2] -= dz * kb;
         }
         if (it % 2 === 0) this.collide(u, ground);
       }
@@ -164,14 +178,22 @@ export class Cloak {
   }
 
   collide(u, ground) {
-    const { p, ends, endsBefore, sticks } = this;
+    const { p, ends, endsBefore, sticks, lie } = this;
+    // where each stick lies at this moment of the step: the same for every point of the cloth, so worked out once
+    for (let s = 0; s < sticks.length; s++) {
+      const e = s * 6, o = s * 8;
+      const ax = endsBefore[e] + (ends[e] - endsBefore[e]) * u, ay = endsBefore[e + 1] + (ends[e + 1] - endsBefore[e + 1]) * u, az = endsBefore[e + 2] + (ends[e + 2] - endsBefore[e + 2]) * u;
+      const bx = endsBefore[e + 3] + (ends[e + 3] - endsBefore[e + 3]) * u, by = endsBefore[e + 4] + (ends[e + 4] - endsBefore[e + 4]) * u, bz = endsBefore[e + 5] + (ends[e + 5] - endsBefore[e + 5]) * u;
+      const ex = bx - ax, ey = by - ay, ez = bz - az;
+      lie[o] = ax; lie[o + 1] = ay; lie[o + 2] = az;
+      lie[o + 3] = ex; lie[o + 4] = ey; lie[o + 5] = ez;
+      lie[o + 6] = ex * ex + ey * ey + ez * ez;
+      lie[o + 7] = sticks[s][2] + 0.022;
+    }
+    const count = sticks.length * 8;
     for (let k = COLS * 3; k < p.length; k += 3) {
-      for (let s = 0; s < sticks.length; s++) {
-        const e = s * 6, r = sticks[s][2] + 0.022;
-        const ax = endsBefore[e] + (ends[e] - endsBefore[e]) * u, ay = endsBefore[e + 1] + (ends[e + 1] - endsBefore[e + 1]) * u, az = endsBefore[e + 2] + (ends[e + 2] - endsBefore[e + 2]) * u;
-        const bx = endsBefore[e + 3] + (ends[e + 3] - endsBefore[e + 3]) * u, by = endsBefore[e + 4] + (ends[e + 4] - endsBefore[e + 4]) * u, bz = endsBefore[e + 5] + (ends[e + 5] - endsBefore[e + 5]) * u;
-        const ex = bx - ax, ey = by - ay, ez = bz - az;
-        const len2 = ex * ex + ey * ey + ez * ez;
+      for (let o = 0; o < count; o += 8) {
+        const ax = lie[o], ay = lie[o + 1], az = lie[o + 2], ex = lie[o + 3], ey = lie[o + 4], ez = lie[o + 5], len2 = lie[o + 6], r = lie[o + 7];
         const t = len2 > 1e-8 ? Math.max(0, Math.min(1, ((p[k] - ax) * ex + (p[k + 1] - ay) * ey + (p[k + 2] - az) * ez) / len2)) : 0;
         const dx = p[k] - ax - ex * t, dy = p[k + 1] - ay - ey * t, dz = p[k + 2] - az - ez * t;
         const d2 = dx * dx + dy * dy + dz * dz;
@@ -210,7 +232,7 @@ export class Cloak {
         const bx = p[dn] - p[up], by = p[dn + 1] - p[up + 1], bz = p[dn + 2] - p[up + 2];
         // across x down points out of the back of the cloak
         let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
-        const len = Math.hypot(nx, ny, nz) || 1;
+        const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
         normals[k] = nx / len; normals[k + 1] = ny / len; normals[k + 2] = nz / len;
       }
     }

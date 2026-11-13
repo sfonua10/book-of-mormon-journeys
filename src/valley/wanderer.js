@@ -366,7 +366,8 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
           : /high-poly/.test(name)
             ? paint('EYES', { skinned: true })
             : paint('SKIN', { skinned: true, part: 2 });
-    mesh.frustumCulled = false;
+    // (a part that knows the ball it is held in, as a copy of the man does (npc.js), is not drawn out of view)
+    if (!mesh.boundingSphere) mesh.frustumCulled = false;
   }
 
   // What he wears on his head, set on while he still stands in the pose he was made in. (`hat` is where his head
@@ -441,7 +442,6 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
   // What hangs from his hips: the skirt of a short tunic, and a dagger at the belt.
   const hips = new THREE.Group();
   const skirt = new THREE.Mesh(skirtShape(0.6), paint('SKIRT', { inside: 1 }));
-  skirt.frustumCulled = false;
   let skirtHem = 0.6;
   hips.add(skirt);
   const dagger = new THREE.Group();
@@ -465,7 +465,6 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
     const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.058, 0.3, 18, 3, true), sleevePaint);
     sleeve.rotation.z = -side * Math.PI / 2;
     sleeve.position.set(side * 0.57, 1.49, -0.07);
-    sleeve.frustumCulled = false;
     man.object.add(sleeve);
     sleeve.updateMatrixWorld(true);
     man.bones[side > 0 ? 'lowerarm_l' : 'lowerarm_r'].attach(sleeve);
@@ -495,7 +494,9 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
   const folds = new Float32Array(cols * rows);
   geometry.setAttribute('aFold', new THREE.BufferAttribute(folds, 1).setUsage(THREE.DynamicDrawUsage));
   const cloakMesh = new THREE.Mesh(geometry, paint('CLOAK', { inside: 1 }));
-  cloakMesh.frustumCulled = false;
+  // (the cloth's points are where the world has them, and move: the ball that holds them is kept with them, in
+  // update, so the cloak too is not drawn out of view)
+  geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 2);
 
   const group = new THREE.Group();
   group.add(man.object, cloakMesh);
@@ -505,7 +506,6 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
   knob.position.y = 2.06;
   staff.add(knob);
   staff.visible = false;
-  staff.frustumCulled = false;
   group.add(staff);
 
   /** Sets every paint from the palette, and what he wears from its OUTFIT. */
@@ -541,6 +541,12 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
       beardMesh.scale.set(long ? 1.12 : 1.05, long ? 2.1 : 1.2, long ? 0.78 : 0.8);
       beardMesh.position.set(0, long ? -0.255 : -0.2, long ? 0.07 : 0.075);
     }
+    // (a cloak just put on was not worked out while it was not worn: it is hung afresh, and let fall into its folds
+    // before it is next seen, in update)
+    if (o.cloak && !outfit?.cloak) {
+      cloak.started = false;
+      unsettled = outfit === null ? 0 : 30;
+    }
     cloakMesh.visible = o.cloak;
     skirt.visible = o.hem > 0;
     skirt.material.uniforms.uEdge.value = o.edge;
@@ -561,6 +567,7 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
     outfit = o;
   }
   let outfit = null;
+  let unsettled = 0;
   wear();
 
   return {
@@ -584,7 +591,14 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
     },
     /** After he has moved: the cloth. `air(x, y, z, out)` is the wind there, `ground(x, z)` the land's height. */
     update(dt, air, ground) {
+      // (no cloak, no cloth to work out: it is a good part of a frame's sums)
+      if (!outfit.cloak) return;
+      // a second and a half of hanging, over its first five frames (clothes are changed while the picture is dark)
+      for (let i = 0; i < 6 && unsettled > 0; i++, unsettled--) cloak.update(0.05, air, ground);
       cloak.update(dt, air, ground);
+      // the ball that holds the cloth: 2 m about the middle of its collar (it is 1.2 m long)
+      const mid = ((cols - 1) >> 1) * 3;
+      geometry.boundingSphere.center.set(cloak.p[mid], cloak.p[mid + 1], cloak.p[mid + 2]);
       // a fold's bottom is where the cloth to either side stands out from it, the way its outside faces
       const { p, normals } = cloak;
       for (let j = 0; j < rows; j++) {

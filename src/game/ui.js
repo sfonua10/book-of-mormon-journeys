@@ -154,11 +154,60 @@ const CSS = /* css */ `
 .g-screen .journeys li.open:hover { border-color: var(--gold); background: rgba(227, 189, 109, 0.1); }
 .g-screen .journeys .no { color: var(--gold); font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; }
 .g-screen .journeys .done { letter-spacing: 0.1em; color: var(--ink); }
-.g-screen .journeys h2 { font-weight: normal; font-size: 26px; margin: 4px 0 2px; color: #fff; }
+.g-screen .journeys h3 { font-weight: normal; font-size: 26px; margin: 4px 0 2px; color: #fff; }
 .g-screen .journeys .about { font-size: 15px; line-height: 1.5; opacity: 0.75; }
 .g-screen .journeys .go { display: grid; justify-items: center; gap: 8px; }
 .g-screen .journeys button { margin: 0; white-space: nowrap; }
 .g-screen .journeys .go button + button { border: 0; padding: 2px 6px; font-size: 14px; opacity: 0.75; text-decoration: underline; }
+/* the first screen: each standard work a heading with a book beside it, and under it, on gold lines like a family
+   tree, its books; a book with journeys opens on a card for each, and one with none yet is shown, greyed */
+.g-screen .box:has(> .work) { max-width: 520px; margin: 0 auto; }
+.g-screen .work { margin-top: 18px; text-align: left; --tree: rgba(227, 189, 109, 0.55); }
+.g-screen .work + .work { margin-top: 10px; }
+.g-screen .work h2 { display: flex; align-items: center; gap: 12px; margin: 0; font-weight: normal; font-size: 21px; color: #fff; }
+.g-screen .work h2 .icon { width: 24px; height: 24px; flex: none; fill: none; stroke: var(--gold); stroke-width: 1.5; stroke-linejoin: round; }
+.g-screen .work h2 em { margin-left: auto; font-size: 14px; color: var(--ink); opacity: 0.7; }
+.g-screen .tree, .g-screen .leaves { list-style: none; margin: 0; padding: 0; }
+.g-screen .tree { margin-left: 11px; }
+.g-screen .tree > li, .g-screen .leaves > li { position: relative; padding-left: 24px; }
+/* the lines: down the side of each row (to its middle, for the last), and across to it */
+.g-screen .tree > li::before, .g-screen .leaves > li::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1px solid var(--tree); }
+.g-screen .tree > li:last-child::before, .g-screen .leaves > li:last-child::before { bottom: auto; height: var(--mid); }
+.g-screen .tree > li::after, .g-screen .leaves > li::after { content: ''; position: absolute; left: 0; top: var(--mid); width: 16px; border-top: 1px solid var(--tree); }
+.g-screen .tree > li { --mid: 17px; }
+.g-screen .leaves > li { --mid: 38px; padding-bottom: 8px; }
+.g-screen .leaves { margin-left: 9px; }
+.g-screen button.twig {
+  display: flex; align-items: center; gap: 8px; width: 100%; margin: 0; padding: 6px 0; background: none; border: 0; border-radius: 0;
+  color: #fff; font-size: 17px; letter-spacing: 0.02em; text-align: left;
+}
+.g-screen button.twig .chev { width: 12px; height: 12px; flex: none; fill: none; stroke: var(--gold); stroke-width: 2; transition: transform 0.15s; }
+.g-screen .book.shown > .twig .chev { transform: rotate(90deg); }
+.g-screen .book:not(.shown) > .leaves { display: none; }
+.g-screen button.twig:disabled { cursor: default; opacity: 0.4; }
+.g-screen button.twig:not(:disabled):hover { color: var(--gold); }
+/* a journey's card: the face of the one it follows, with their name under it, the chapters, and Play */
+.g-screen .leaf {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px 14px; padding: 8px 12px;
+  border: 1px solid var(--tree); border-radius: 7px; background: rgba(244, 234, 214, 0.05); transition: border-color 0.15s, background 0.15s;
+}
+.g-screen .leaf.open { cursor: pointer; }
+.g-screen .leaf.open:hover { border-color: var(--gold); background: rgba(227, 189, 109, 0.1); }
+.g-screen .leaf.soon { border-style: dashed; opacity: 0.55; }
+.g-screen .who { margin: 0; display: grid; justify-items: center; gap: 3px; width: 64px; }
+.g-screen .who figcaption { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
+.g-screen .leaf .face {
+  display: block; width: 48px; height: 48px; border-radius: 50%; object-fit: cover; object-position: 50% 30%;
+  background: radial-gradient(circle at 50% 40%, #6b4a22, #241809 75%); box-shadow: 0 0 0 1px var(--tree), 0 0 0 3px rgba(227, 189, 109, 0.12);
+}
+.g-screen .leaf span.face { background: none; }
+.g-screen .leaf .what { min-width: 0; }
+.g-screen .leaf .about { font-style: italic; font-size: 16px; white-space: nowrap; }
+.g-screen .leaf .title { font-size: 13px; opacity: 0.7; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-screen .leaf .go { display: grid; justify-items: center; gap: 4px; }
+.g-screen .leaf button { margin: 0; padding: 7px 20px; font-size: 15px; white-space: nowrap; }
+.g-screen .leaf .go button + button { border: 0; padding: 2px 6px; font-size: 13px; opacity: 0.75; text-decoration: underline; }
+.g-screen .leaf .done { font-style: normal; color: var(--gold); }
 .g-screen .journeys .soon { border-style: dashed; opacity: 0.5; }
 .g-screen .ask { margin: 14px 0 0; font-style: italic; opacity: 0.75; }
 .g-screen .shelf { margin: 16px 0 -10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -166,6 +215,11 @@ const CSS = /* css */ `
 .g-screen .shelf button { margin: 0; border: 0; padding: 6px 2px; font-size: 15px; opacity: 0.8; }
 @media (max-width: 600px) {
   .g-screen .journeys li { grid-template-columns: 1fr; }
+  .g-screen .leaf { gap: 6px 10px; padding: 8px 10px; }
+  .g-screen .leaf button { padding: 7px 14px; }
+  .g-screen .who { width: 52px; }
+  .g-screen .leaf .face { width: 42px; height: 42px; }
+  .g-screen .leaf .about { font-size: 15px; }
   .g-screen .journeys .go { justify-items: start; grid-auto-flow: column; justify-content: start; align-items: center; }
 }
 .g-screen .next { font-size: 15px; opacity: 0.75; }
@@ -318,82 +372,96 @@ export function createUI({ touch = false } = {}) {
       chapter.classList.add('on');
     },
     /**
-     * The first screen, in two steps: the books of scripture (`works`, [{ id, name }]) to choose from, then the
-     * journeys of the one chosen. `at` is a book's id to begin at its journeys. `list` is [{ id, number, title, ref, blurb,
-     * released, done, resume }]: one that is released can be begun (or gone on with, from the act `resume` names);
-     * one that is not is only told of. Resolves with { id, go: 'begin' | 'continue' } when a button is pressed.
+     * The first screen, a tree: each standard work (`works`, [{ id, name, books: [{ id, name, face }] }]) a heading,
+     * its books under it, and under each book a card for each of its journeys. A book with journeys opens and closes;
+     * one with none yet is shown greyed, and a work with no journey at all is marked as coming. `at` is { work, book }
+     * to begin at: that book is opened and brought into view. `list` is [{ id, work, book, face, ref, title, released,
+     * done, resume }]: one that is released can be begun (or gone on with, from the act `resume` names); one that is
+     * not is only told of. Resolves with { id, go: 'begin' | 'continue' } when a journey's button is pressed.
      */
     stories({ name, works, list, at = null }) {
-      const item = (s) => {
-        const no = `Journey ${esc(s.number)}`;
+      const of = (w, b) => list.filter((s) => s.work === w.id && s.book === b.id);
+      // "1 Nephi 3–4", in the book 1 Nephi, is "Chapters 3–4"
+      const chapters = (b, ref) => {
+        const rest = ref?.startsWith(`${b.name} `) ? ref.slice(b.name.length + 1) : null;
+        if (rest && /^\d+$/.test(rest)) return `Chapter ${rest}`;
+        if (rest && /^\d+[–-]\d+$/.test(rest)) return `Chapters ${rest}`;
+        return ref ?? '';
+      };
+      // the face of the one a journey follows (its own, or its book's), with their name under it
+      const who = (face) =>
+        `<figure class="who">${
+          face
+            ? `<img class="face" src="${esc(face.src)}" alt="" width="48" height="48" decoding="async" /><figcaption>${esc(face.who)}</figcaption>`
+            : '<span class="face" aria-hidden="true"></span>'
+        }</figure>`;
+      const leaf = (b, s) => {
         if (!s.released) {
-          return `<li class="soon">
-            <div class="what">
-              <div class="no">${no} · Coming next week</div>
-              <h2>${s.title ? esc(s.title) : 'A new journey'}</h2>
-              ${s.ref ? `<div class="about">${esc(s.ref)}</div>` : ''}
-            </div>
-          </li>`;
+          return `<li><div class="leaf soon">${who(s.face ?? b.face)}<div class="what">
+            <div class="about">${s.ref ? esc(chapters(b, s.ref)) : 'A new journey'}</div><div class="title">Coming next week</div>
+          </div></div></li>`;
         }
         const go = s.resume
-          ? `<button data-id="${esc(s.id)}" data-go="continue">Continue · ${esc(s.resume)}</button><button data-id="${esc(s.id)}" data-go="begin" class="plain">Start over</button>`
-          : `<button data-id="${esc(s.id)}" data-go="begin"${s.done ? ' class="plain"' : ''}>${s.done ? 'Play again' : 'Begin'}</button>`;
-        return `<li class="open">
-          <div class="what">
-            <div class="no">${no} · ${esc(s.ref)}${s.done ? ' · <span class="done">✓ Finished</span>' : ''}</div>
-            <h2>${esc(s.title)}</h2>
-            <div class="about">${esc(s.blurb)}</div>
-          </div>
-          <div class="go">${go}</div>
+          ? `<button data-id="${esc(s.id)}" data-go="continue">Continue</button><button data-id="${esc(s.id)}" data-go="begin" class="plain">Start over</button>`
+          : `<button data-id="${esc(s.id)}" data-go="begin"${s.done ? ' class="plain"' : ''}>${s.done ? 'Play again' : 'Play'}</button>`;
+        return `<li><div class="leaf open">${who(s.face ?? b.face)}<div class="what">
+            <div class="about">${esc(chapters(b, s.ref))}${s.done ? ' <span class="done">✓</span>' : ''}</div>
+            <div class="title">${esc(s.title)}</div>
+          </div><div class="go">${go}</div></div></li>`;
+      };
+      const CHEV = '<svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4"/></svg>';
+      const ICON =
+        '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10 5 7 4.5 3 5v13c4-.5 7 0 9 1.5 2-1.5 5-2 9-1.5V5c-4-.5-7 0-9 1.5Zm0 0v13"/></svg>';
+      // a book: its name, to open and close, and its journeys; with none, greyed (a book with journeys starts open)
+      const book = (w, b) => {
+        const all = of(w, b);
+        const id = `g-book-${esc(w.id)}-${esc(b.id)}`;
+        return `<li class="book${all.length ? ' shown' : ''}" data-at="${esc(w.id)}/${esc(b.id)}">
+          <button class="twig" ${all.length ? `aria-expanded="true" aria-controls="${id}"` : 'disabled'}>${CHEV}<span>${esc(b.name)}</span></button>
+          ${all.length ? `<ul class="leaves" id="${id}">${all.map((s) => leaf(b, s)).join('')}</ul>` : ''}
         </li>`;
       };
-      // a book of scripture: how many journeys it has, and where they are told from
-      const book = (w) => {
-        const ready = list.filter((s) => s.work === w.id && s.released);
-        const count = ready.length === 1 ? '1 journey' : `${ready.length} journeys`;
-        return `<li class="open">
-          <div class="what">
-            <div class="no">${count}</div>
-            <h2>${esc(w.name)}</h2>
-            <div class="about">${ready.map((s) => esc(s.ref)).join(' · ')}</div>
-          </div>
-          <div class="go"><button data-work="${esc(w.id)}">Open</button></div>
-        </li>`;
+      // a standard work: its heading, and its books (and a journey to come that has no book yet, after them)
+      const section = (w) => {
+        const loose = list.filter((s) => s.work === w.id && !s.book);
+        const any = list.some((s) => s.work === w.id);
+        const rows =
+          w.books.map((b) => book(w, b)).join('') +
+          loose.map(() => '<li class="book"><button class="twig" disabled><span><em>A new journey · coming next week</em></span></button></li>').join('');
+        return `<section class="work">
+          <h2>${ICON}<span>${esc(w.name)}</span>${any ? '' : '<em>Coming soon</em>'}</h2>
+          ${any && rows ? `<ul class="tree">${rows}</ul>` : ''}
+        </section>`;
       };
-      // (only the books that have a journey to play are listed)
-      const shelf = works.filter((w) => list.some((s) => s.work === w.id && s.released));
       title.classList.add('on');
       return new Promise((done) => {
-        /** Shows the books (work: null), or the journeys of one of them. */
-        const show = (work) => {
-          const of = shelf.find((w) => w.id === work);
-          title.innerHTML = of
-            ? `<div class="box">
-                <h1>${esc(name)}</h1>
-                <div class="shelf"><button data-work="" class="plain">‹ All books</button><span>${esc(of.name)}</span></div>
-                <ul class="journeys">${list.filter((s) => s.work === of.id).map(item).join('')}</ul>
-              </div>`
-            : `<div class="box">
-                <h1>${esc(name)}</h1>
-                <p class="ask">Choose a book of scripture</p>
-                <ul class="journeys">${shelf.map(book).join('')}</ul>
-              </div>`;
-          for (const b of title.querySelectorAll('button')) {
-            b.addEventListener('click', () => {
-              if (b.dataset.work !== undefined) return show(b.dataset.work || null);
-              title.classList.remove('on');
-              done({ id: b.dataset.id, go: b.dataset.go });
-            });
-          }
-          // (a whole row can be pressed, for its first button)
-          for (const li of title.querySelectorAll('li.open')) {
-            li.addEventListener('click', (e) => {
-              if (!e.target.closest('button')) li.querySelector('button').click();
-            });
-          }
-          title.querySelector('li button')?.focus();
-        };
-        show(at);
+        title.innerHTML = `<div class="box">
+          <h1>${esc(name)}</h1>
+          <p class="ask">Choose a journey</p>
+          ${works.map(section).join('')}
+        </div>`;
+        title.scrollTop = 0;
+        for (const twig of title.querySelectorAll('button.twig:not(:disabled)')) {
+          twig.addEventListener('click', () => {
+            const shown = twig.parentElement.classList.toggle('shown');
+            twig.setAttribute('aria-expanded', String(shown));
+          });
+        }
+        for (const btn of title.querySelectorAll('button[data-go]')) {
+          btn.addEventListener('click', () => {
+            title.classList.remove('on');
+            done({ id: btn.dataset.id, go: btn.dataset.go });
+          });
+        }
+        // (a whole card can be pressed, for its first button)
+        for (const card of title.querySelectorAll('.leaf.open')) {
+          card.addEventListener('click', (e) => {
+            if (!e.target.closest('button')) card.querySelector('button').click();
+          });
+        }
+        const there = at?.book && title.querySelector(`[data-at="${window.CSS.escape(`${at.work}/${at.book}`)}"]`);
+        there?.scrollIntoView({ block: 'center' });
+        (there?.querySelector('button[data-go]') ?? title.querySelector('button[data-go]'))?.focus({ preventScroll: !!there });
       });
     },
     hideTitle() {

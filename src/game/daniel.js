@@ -123,6 +123,12 @@ export const PEOPLE = [
   ['fourth', 'fourth', true],
 ];
 
+/**
+ * What is written, small, over each of them the text names (names.js), spelled as the cards spell them. `you` is the
+ * one you walk as: the other two being Meshach and Abednego, you are Shadrach. The fourth has no name written.
+ */
+export const NAMES = { you: 'Shadrach', meshach: 'Meshach', abednego: 'Abednego', king: 'Nebuchadnezzar' };
+
 /** The people of the city are the story's to place (the crowd on the plain, the king's counsellors): none walk it. */
 export function town() {
   return { day() {}, night() {}, watch() {} };

@@ -162,13 +162,27 @@ export function createField({
 
   const group = new THREE.Group();
   const ground = createGround(shared, textures, { height, extentMin, texel });
-  const blades = createBlades(shared, { height, density, seed }, groundAt);
+  /**
+   * Whether anything of one kind is anywhere in the square (x0, z0) to (x1, z1), by the map of what grows where
+   * (`channel` 1: grass; 3: flowers): whether it says so at any texel a shader reading it there could touch. A tile
+   * of blades or flowers on ground where it says none grow has nothing in it to draw.
+   */
+  const anyIn = (channel) => (x0, z0, x1, z1) => {
+    const lo = (v, min) => Math.min(extentRes - 1, Math.max(0, Math.floor((v - min) / texel - 0.5)));
+    const i0 = lo(x0, extentMin[0]);
+    const i1 = Math.min(extentRes - 1, lo(x1, extentMin[0]) + 1);
+    const j0 = lo(z0, extentMin[1]);
+    const j1 = Math.min(extentRes - 1, lo(z1, extentMin[1]) + 1);
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (map[(i + j * extentRes) * 4 + channel] > 0) return true;
+    return false;
+  };
+  const blades = createBlades(shared, { height, density, seed }, groundAt, anyIn(1));
   blades.init();
   group.add(ground.mesh, blades.group);
   const random = mulberry(seed * 31 + 9);
   const clippings = createClippings(shared, state, groundAt, random);
   group.add(clippings.mesh);
-  const flowerBed = flowers ? createFlowers(shared, { height, seed }, groundAt) : null;
+  const flowerBed = flowers ? createFlowers(shared, { height, seed }, groundAt, anyIn(3)) : null;
   if (flowerBed) group.add(flowerBed.group);
 
   const wind = { angle: 0, speed: 3, gust: 1 };

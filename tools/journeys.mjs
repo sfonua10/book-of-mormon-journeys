@@ -17,7 +17,7 @@ const out = resolve(here, 'shots/journeys');
 if (shots) mkdirSync(out, { recursive: true });
 
 const root = resolve(here, 'dist');
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.ogg': 'audio/ogg', '.glb': 'model/gltf-binary' };
+const types = { '.webp': 'image/webp', '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.ogg': 'audio/ogg', '.glb': 'model/gltf-binary' };
 const server = createServer((req, res) => {
   let file = normalize(join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname)));
   if (existsSync(file) && statSync(file).isDirectory()) file = join(file, 'index.html');
@@ -51,20 +51,21 @@ const open = async (query = '') => {
   await page.goto(`${base}?${common}${query ? `&${query}` : ''}`);
   await ready();
 };
-/** What the list shows: its heading, and each journey's title, buttons and whether it is only to come. */
+/** What the list shows: its heading, each work (and whether it is coming), each book (and whether it is greyed), and
+ * each journey's card. */
 const list = () =>
   page.evaluate(() => ({
     on: document.querySelector('#g-title')?.classList.contains('on'),
     heading: document.querySelector('#g-title h1')?.textContent,
-    items: [...document.querySelectorAll('#g-title .journeys li')].map((li) => ({
+    works: [...document.querySelectorAll('#g-title .work h2')].map((h) => `${h.querySelector('span').textContent}${h.querySelector('em') ? ':coming' : ''}`),
+    books: [...document.querySelectorAll('#g-title .twig')].map((t) => `${t.textContent.trim()}${t.disabled ? ':greyed' : ''}`),
+    items: [...document.querySelectorAll('#g-title .leaf')].map((li) => ({
       soon: li.classList.contains('soon'),
-      title: li.querySelector('h2').textContent,
-      no: li.querySelector('.no').textContent,
+      who: li.querySelector('figcaption')?.textContent ?? '',
+      no: li.querySelector('.about').textContent,
       buttons: [...li.querySelectorAll('button')].map((b) => b.textContent),
     })),
   }));
-/** Opens a book on the first screen. */
-const book = (id) => page.click(`#g-title button[data-work="${id}"]`);
 const keys = () => page.evaluate(() => Object.fromEntries(Object.entries(localStorage)));
 const ticks = (n) =>
   page.evaluate(async (count) => {
@@ -81,40 +82,40 @@ await open();
 let l = await list();
 check('the books are the first screen', l.on === true && l.heading === 'Scripture Journeys', l.heading);
 check('the page is named for the game', (await page.title()) === 'Scripture Journeys', await page.title());
-check('two books are listed, each to open', l.items.map((i) => `${i.title}:${i.buttons.join('|')}`).join(', ') === 'Book of Mormon:Open, Old Testament:Open', l.items);
-if (shots) await page.screenshot({ path: join(out, '0-books.png') });
-// the Old Testament has the furnace; back, and the Book of Mormon has the plates and the one to come
-await book('ot');
-l = await list();
-check('the Old Testament lists its journey', l.items.length === 1 && l.items[0].title === 'But If Not' && l.items[0].buttons.join('|') === 'Begin', l.items);
-if (shots) await page.screenshot({ path: join(out, '0-old-testament.png') });
-await page.click('#g-title .shelf button');
-l = await list();
-check('and goes back to the books', l.items.length === 2 && l.items[0].title === 'Book of Mormon', l.items);
-await book('bom');
-l = await list();
-check('two journeys are listed', l.items.length === 2, l.items.length);
-check('the first can be begun', l.items[0]?.title === 'I Will Go and Do' && l.items[0].buttons.join('|') === 'Begin', l.items[0]);
-check('the next is coming, with no button', l.items[1]?.soon && l.items[1].buttons.length === 0 && /Coming next week/.test(l.items[1].no), l.items[1]);
+check(
+  'the five standard works are listed, in order, those with nothing yet as coming',
+  l.works.join(', ') === 'Old Testament, New Testament:coming, Book of Mormon, Doctrine and Covenants:coming, Pearl of Great Price:coming',
+  l.works,
+);
+check(
+  'under them their books, those with no journey greyed',
+  l.books.slice(0, 4).join(', ') === 'Daniel, 1 Nephi, 2 Nephi:greyed, Jacob:greyed' && l.books.at(-1) === 'A new journey · coming next week:greyed',
+  l.books,
+);
+check(
+  'and a card for each journey, with the face and name of the one it follows',
+  l.items.map((i) => `${i.who}:${i.no}:${i.buttons.join('|')}`).join(', ') === 'Daniel:Chapter 3:Play, Nephi:Chapters 3–4:Play',
+  l.items,
+);
+await page.click('#g-title .twig:not(:disabled)');
+check('a book closes', (await page.evaluate(() => getComputedStyle(document.querySelector('#g-title .leaves')).display)) === 'none');
 if (shots) await page.screenshot({ path: join(out, '1-list.png') });
 
 // 2. a place kept under the old key is brought over, and can be gone on from
 await page.evaluate(() => localStorage.setItem('nephi-plates:beat', 'a2'));
 await open();
-await book('bom');
 l = await list();
 let k = await keys();
-check('the old place is offered', /^Continue · /.test(l.items[0]?.buttons[0] ?? '') && l.items[0].buttons[1] === 'Start over', l.items[0]?.buttons);
+check('the old place is offered', /^Continue/.test(l.items[1]?.buttons[0] ?? '') && l.items[1].buttons[1] === 'Start over', l.items[1]?.buttons);
 check('it is kept under the new key', k['bom-journeys:plates-of-brass:beat'] === 'a2' && !('nephi-plates:beat' in k), k);
 if (shots) await page.screenshot({ path: join(out, '2-continue.png') });
-await page.click('#g-title button[data-go="continue"]');
+await page.click('#g-title button[data-id="plates-of-brass"][data-go="continue"]');
 await ticks(5);
 check('Continue goes on from there', (await page.evaluate(() => window.__tg.director.beat)) === 'a2', await page.evaluate(() => window.__tg.director.beat));
 
 // 3. Start over begins at the beginning
 await open();
-await book('bom');
-await page.click('#g-title button[data-go="begin"]');
+await page.click('#g-title button[data-id="plates-of-brass"][data-go="begin"]');
 await ticks(5);
 check('Start over begins at the first beat', (await page.evaluate(() => window.__tg.director.beat)) === 'a1', await page.evaluate(() => window.__tg.director.beat));
 
@@ -140,19 +141,17 @@ if (shots) await page.screenshot({ path: join(out, '3-end.png') });
 await Promise.all([page.waitForNavigation(), page.click('#g-end button[data-go="back"]')]);
 await ready();
 l = await list();
-check('Back to journeys shows the books', l.on === true && l.items[0]?.title === 'Book of Mormon' && !/[?&](auto|beat|story|go)\b/.test(page.url()), page.url());
-await book('bom');
-l = await list();
-check('with the journey ticked, to play again', /Finished/.test(l.items[0]?.no ?? '') && l.items[0].buttons.join('|') === 'Play again', l.items[0]);
+check('Back to journeys shows the standard works', l.on === true && l.works.length === 5 && !/[?&](auto|beat|story|go)\b/.test(page.url()), page.url());
+check('with the journey ticked, to play again', /✓/.test(l.items[1]?.no ?? '') && l.items[1].buttons.join('|') === 'Play again', l.items[1]);
 if (shots) await page.screenshot({ path: join(out, '4-finished.png') });
 
 // 5. a journey there is not falls back to the first; one asked for with ?go begins without the list
 await open('story=nonsense');
 l = await list();
-check('an unknown ?story shows the list', l.on === true && l.items.length === 2, l);
+check('an unknown ?story shows the list', l.on === true && l.works.length === 5, l);
 await open('story=fiery-furnace');
 l = await list();
-check("a journey asked for by name opens at its book's journeys", l.on === true && l.items.length === 1 && l.items[0].title === 'But If Not', l);
+check('a journey asked for by name, in a book of one journey, shows the list', l.on === true && l.works.length === 5, l);
 await open('story=plates-of-brass&go=begin');
 await ticks(5);
 const went = await page.evaluate(() => ({ beat: window.__tg.director.beat, list: document.querySelector('#g-title')?.classList.contains('on') }));

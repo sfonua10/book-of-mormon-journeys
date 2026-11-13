@@ -259,8 +259,9 @@ function ringGeometry(ring, random) {
  * @param o.height metres, a tall blade
  * @param o.density 0 to 1, the share of blades drawn
  * @param heightAt the CPU's ground, for placing each tile so it's culled properly
+ * @param growsIn (x0, z0, x1, z1) => whether grass grows anywhere in that square of ground (always, if not given)
  */
-export function createBlades(shared, { height = 0.52, density = 1, seed = 1 } = {}, heightAt) {
+export function createBlades(shared, { height = 0.52, density = 1, seed = 1 } = {}, heightAt, growsIn = () => true) {
   const group = new THREE.Group();
   const random = mulberry(seed * 977 + 3);
   const rings = RINGS.map((ring, index) => {
@@ -298,19 +299,43 @@ export function createBlades(shared, { height = 0.52, density = 1, seed = 1 } = 
     setHeight(h) {
       for (const r of rings) r.uniforms.uHeight.value = h;
     },
-    /** Keeps each ring's tiles under the camera. Only does anything when the camera crosses into a new tile. */
+    /**
+     * Keeps each ring's tiles under the camera: they are moved only when the camera crosses into a new tile. And
+     * each frame, a tile none of whose blades can be seen is not drawn. A ring is a square of tiles, and its blades
+     * are there only between two distances from the eye (uFade): the tiles in the square's corners, wholly past the
+     * further one, and any wholly within the nearer, were about two in five of them. Nor is a tile drawn that lies
+     * on ground where no grass grows: a street, a floor, the bare earth of a camp, the sand of the plain. In all of
+     * these every blade was worked out by the graphics card to be thrown away.
+     */
     follow(x, z) {
       for (const r of rings) {
-        const sx = Math.floor(x / r.ring.tile);
-        const sz = Math.floor(z / r.ring.tile);
-        if (sx === r.at[0] && sz === r.at[1]) continue;
-        r.at = [sx, sz];
+        const { tile: side, cell, fade } = r.ring;
+        const sx = Math.floor(x / side);
+        const sz = Math.floor(z / side);
+        if (sx !== r.at[0] || sz !== r.at[1]) {
+          r.at = [sx, sz];
+          for (const tile of r.tiles) {
+            const ox = (sx + tile.i) * side;
+            const oz = (sz + tile.j) * side;
+            tile.ox = ox;
+            tile.oz = oz;
+            // (a blade stands within a cell of its tile's square)
+            tile.grows = growsIn(ox - cell, oz - cell, ox + side + cell, oz + side + cell);
+            tile.mesh.position.set(ox, heightAt(ox + side / 2, oz + side / 2), oz);
+            tile.mesh.updateMatrix();
+            tile.mesh.updateMatrixWorld(true);
+          }
+        }
         for (const tile of r.tiles) {
-          const ox = (sx + tile.i) * r.ring.tile;
-          const oz = (sz + tile.j) * r.ring.tile;
-          tile.mesh.position.set(ox, heightAt(ox + r.ring.tile / 2, oz + r.ring.tile / 2), oz);
-          tile.mesh.updateMatrix();
-          tile.mesh.updateMatrixWorld(true);
+          // the nearest and the furthest any blade of this tile can stand from the eye, over the ground (a blade
+          // stands within a cell of its tile's square)
+          const x0 = tile.ox - cell - x;
+          const x1 = tile.ox + side + cell - x;
+          const z0 = tile.oz - cell - z;
+          const z1 = tile.oz + side + cell - z;
+          const near = Math.hypot(Math.max(x0, -x1, 0), Math.max(z0, -z1, 0));
+          const far = Math.hypot(Math.max(-x0, x1), Math.max(-z0, z1));
+          tile.mesh.visible = tile.grows && near < fade[3] && (fade[1] < 0 || far > fade[0]);
         }
       }
     },

@@ -28,6 +28,7 @@ import { createMusic } from '../game/music.js';
 import { createNarration } from '../game/narration.js';
 import { createTown, TOWN_CLOTHES, TOWNSFOLK } from '../game/town.js';
 import { cloneMan, createCast } from '../game/npc.js';
+import { createNames } from '../game/names.js';
 import { GAME, keeper, STORIES, storyById, WORKS } from '../game/stories.js';
 import { createUI } from '../game/ui.js';
 import { createTouch, wantsTouch } from '../game/touch.js';
@@ -230,7 +231,8 @@ mark('farWoods');
 // (the city as this journey has it: Jerusalem, unless it brings its own look)
 const city = createCity(field, journey.look);
 mark('city');
-scene.add(sky.mesh, createHorizon(field, EXTENT / 2), trees.group, farWoods.group, city.mesh);
+const horizon = createHorizon(field, EXTENT / 2);
+scene.add(sky.mesh, horizon, trees.group, farWoods.group, city.mesh);
 // the river plain's river and canals
 if (LAND === 'plain') scene.add(createRiver(field, sky, PLAIN.river.level, EXTENT));
 // the finish: the frame laid in as brush marks. ?paint=0 for none; P turns it on and off.
@@ -433,6 +435,15 @@ scene.add(props.group);
 const animator = new Animator(wanderer.man);
 const walker = new Walker({ RAPIER, world: physics, man: wanderer.man, animator, spawn: new THREE.Vector3(player.x, player.y, player.z), yaw: player.yaw + Math.PI });
 const follow = new Follow(camera);
+// the names of those the text names, small, over their heads (names.js); ?names=0 for none
+const names = createNames((from, dir, max) => walker.castRay(from, dir, max));
+if (params.get('names') !== '0') {
+  for (const [who, name] of Object.entries(journey.names ?? {})) {
+    const npc = cast.get(who);
+    if (who === 'you') names.add(name, wanderer.man.object, () => wanderer.group.visible, () => wanderer.outfit.head);
+    else if (npc) names.add(name, npc.man.object, () => npc.visible && !npc.far, () => npc.w.outfit.head, () => !!npc.lying);
+  }
+}
 const input = new Input(canvas, { pads: !stepped && !params.has('nopad') });
 physics.step();
 // V goes between the two walks; ?view=first begins in your own eyes
@@ -578,7 +589,10 @@ function updateWanderer(dt) {
 
 /** The way-marker over where the story wants Nephi to go (never in the night act, where there is none). */
 const marked = new THREE.Vector3();
+/** Where on the page it is shown ([x, y]), or null: the names over the people give way to it. */
+let markedAt = null;
 function showMarker() {
+  markedAt = null;
   // (nothing until the story has begun: the warm-up frames come before the page's parts are made)
   if (!director) return;
   const goal = director.goal;
@@ -599,6 +613,7 @@ function showMarker() {
   const cx = Math.min(w - 50, Math.max(50, x));
   const cy = Math.min(h - Math.max(150, h * 0.3), Math.max(70, y));
   ui.marker(cx, cy, metres, cx === x && cy === y ? null : Math.atan2(y - cy, x - cx));
+  markedAt = [cx, cy];
 }
 
 /** The autopilot: walks him towards the story's goal, and lifts him over anything he is stuck on. */
@@ -735,6 +750,8 @@ function tick(dt) {
   guidance?.update(dt);
   music.update(dt);
   showMarker();
+  // (no names before the story has begun, nor behind the screen at its end)
+  names.update(camera, window.innerWidth, window.innerHeight, !!director && !director.ended, markedAt);
   farWoods.update(dt, wind.speed);
   frame.update(dt, camera);
   clock += dt;
@@ -758,6 +775,10 @@ function tick(dt) {
   sounds.update(dt, { wind: wind.speed, gust, tree, tarn, dusk: Math.min(1, Math.max(0, (sky.hour - 18.8) / 1.4)) * (1 - 0.4 * sky.night) });
   sky.update(dt, camera);
   frame.exposure = sky.exposure;
+  // (only what can be seen of the trees and of the far land is drawn: the camera is by now where this frame is
+  // drawn from)
+  trees.cull(camera, canvas.height);
+  horizon.cull(camera);
   frame.render(scene, camera);
 }
 
@@ -938,35 +959,6 @@ director = createDirector(journey.beats(g), ui, g, { keep: keeper(journey), auto
 window.__tg = { sounds, walker, follow, input, wanderer, animator, setThird, standAt, pickTime, timings, view: null, wind, THREE, renderer, scene, camera, field, frame, sky, trees, farWoods, stones, player, keys, tick, setHour, setWind, fromValley, director, cast, props, city, g, ready: true };
 
 // ---- the loop's switch ----------------------------------------------------------------------------------------
-// How finely the picture is drawn follows what the device can do. Where two seconds together go by at fewer than 27
-// pictures a second, each is drawn with fewer points (down to three quarters of the page's own): on a phone that is
-// the difference between a walk that stutters and one that does not, and the painting hides the loss. It is never
-// made finer again (so it cannot waver), and an address that says how fine (?dpr=) is left as it says.
-const fine = {
-  ratio: renderer.getPixelRatio(),
-  least: 0.75,
-  frames: 0,
-  ms: 0,
-  /** Passes over the first seconds, and the seconds after each change, when things are still settling. */
-  skip: 3000,
-  frame(ms) {
-    if (params.has('dpr') || this.ratio <= this.least) return;
-    // (a long gap is the page having been away, not a slow picture)
-    if (ms <= 0 || ms > 400) return;
-    if (this.skip > 0) return void (this.skip -= ms);
-    this.frames++;
-    this.ms += ms;
-    if (this.ms < 2000) return;
-    const fps = (this.frames * 1000) / this.ms;
-    this.frames = 0;
-    this.ms = 0;
-    if (fps >= 27) return;
-    this.ratio = Math.max(this.least, this.ratio * 0.82);
-    this.skip = 1500;
-    renderer.setPixelRatio(this.ratio);
-    console.log(`[game] ${fps.toFixed(0)} pictures a second: drawn at ${this.ratio.toFixed(2)} of the page's points`);
-  },
-};
 let last = 0;
 let running = false;
 /** Draws while the page says the demo can be seen, and not at all while it can't. */
@@ -978,7 +970,6 @@ function run() {
   renderer.setAnimationLoop(
     want
       ? (now) => {
-          fine.frame(now - last);
           const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
           last = now;
           tick(dt);
@@ -1028,7 +1019,7 @@ function openJourney(id, go) {
         name: GAME.name,
         works: WORKS,
         // (asked for by name, as on coming back from a journey: its book's journeys are shown)
-        at: params.has('story') ? journey.work : null,
+        at: params.has('story') ? { work: journey.work, book: journey.book } : null,
         list: STORIES.map((s) => {
           const kept = s.released ? keeper(s) : null;
           // (this page's journey is asked of its director, which knows its beats: a place it has no beat for is none)

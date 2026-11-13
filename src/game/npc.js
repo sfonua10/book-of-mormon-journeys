@@ -8,14 +8,26 @@ import { createWanderer } from '../valley/wanderer.js';
 import { holdArms } from '../figure/hold.js';
 import { createHalo } from './halo.js';
 
-/** A fresh copy of a loaded man (man.js), with his own skeleton, sharing the clips. */
+/**
+ * A fresh copy of a loaded man (man.js), with his own skeleton, sharing the clips.
+ *
+ * Each of his parts is given the ball that holds the whole of him, so that one who is out of view is not drawn: a
+ * man's limbs are moved by his bones, and without it nothing could tell where he is but by drawing him. It is 2.2 m
+ * about the middle of him as he stands, which holds him standing, running, lying, fallen down to worship, his arms
+ * out: it goes where he goes and turns as he turns.
+ */
 export function cloneMan(src) {
   const object = cloneSkinned(src.object);
   const meshes = [];
   const bones = {};
+  object.updateMatrixWorld(true);
+  const toPart = new THREE.Matrix4();
   object.traverse((o) => {
     if (o.isSkinnedMesh) {
-      o.frustumCulled = false;
+      // (in the part's own space, which is where it is asked for)
+      toPart.copy(o.matrixWorld).invert().multiply(object.matrixWorld);
+      o.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.95, 0).applyMatrix4(toPart), 2.2 * toPart.getMaxScaleOnAxis());
+      o.frustumCulled = true;
       meshes.push(o);
     }
     if (o.isBone) bones[o.name] = o;

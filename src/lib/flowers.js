@@ -191,7 +191,12 @@ function flowerGeometry(subs = 2) {
   return geometry;
 }
 
-export function createFlowers(shared, { height = 0.52, seed = 1 } = {}, heightAt) {
+/**
+ * @param heightAt the ground's height at (x, z), for placing each tile so it's culled properly
+ * @param flowersIn (x0, z0, x1, z1) => whether a flower can grow anywhere in that square of ground (always, if it
+ *   is not given)
+ */
+export function createFlowers(shared, { height = 0.52, seed = 1 } = {}, heightAt, flowersIn = () => true) {
   const group = new THREE.Group();
   const geometry = flowerGeometry();
   const uniforms = {
@@ -215,17 +220,37 @@ export function createFlowers(shared, { height = 0.52, seed = 1 } = {}, heightAt
   return {
     group,
     uniforms,
+    /**
+     * Keeps the tiles under the camera: they are moved only when the camera crosses into a new tile. And each
+     * frame, a tile where no flower can be seen is not drawn: one on ground where none grows (most of the hill
+     * country, and all of the river plain), or one wholly past where they fade out. Every flower of such a tile was
+     * worked out by the graphics card to be thrown away, and a tile is 80,000 triangles of them.
+     */
     follow(x, z) {
-      const sx = Math.floor(x / RING.tile);
-      const sz = Math.floor(z / RING.tile);
-      if (sx === at[0] && sz === at[1]) return;
-      at = [sx, sz];
+      const side = RING.tile;
+      const sx = Math.floor(x / side);
+      const sz = Math.floor(z / side);
+      if (sx !== at[0] || sz !== at[1]) {
+        at = [sx, sz];
+        for (const tile of tiles) {
+          const ox = (sx + tile.i) * side;
+          const oz = (sz + tile.j) * side;
+          tile.ox = ox;
+          tile.oz = oz;
+          // (a flower stands within a cell of its tile's square)
+          tile.grows = flowersIn(ox - RING.cell, oz - RING.cell, ox + side + RING.cell, oz + side + RING.cell);
+          tile.mesh.position.set(ox, heightAt(ox + side / 2, oz + side / 2), oz);
+          tile.mesh.updateMatrix();
+          tile.mesh.updateMatrixWorld(true);
+        }
+      }
       for (const tile of tiles) {
-        const ox = (sx + tile.i) * RING.tile;
-        const oz = (sz + tile.j) * RING.tile;
-        tile.mesh.position.set(ox, heightAt(ox + RING.tile / 2, oz + RING.tile / 2), oz);
-        tile.mesh.updateMatrix();
-        tile.mesh.updateMatrixWorld(true);
+        // the nearest any flower of this tile can stand to the eye, over the ground
+        const x0 = tile.ox - RING.cell - x;
+        const x1 = tile.ox + side + RING.cell - x;
+        const z0 = tile.oz - RING.cell - z;
+        const z1 = tile.oz + side + RING.cell - z;
+        tile.mesh.visible = tile.grows && Math.hypot(Math.max(x0, -x1, 0), Math.max(z0, -z1, 0)) < RING.fade[1];
       }
     },
   };

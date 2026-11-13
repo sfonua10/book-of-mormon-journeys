@@ -79,6 +79,7 @@ On a phone or a tablet it is played by touch (`src/game/touch.js`): a thumb on t
 
 Useful URL options:
 - `?quality=low|medium|high` (medium by default)
+- `?names=0` leaves off the names written small over those the text names (`src/game/names.js`)
 - `?beat=a2` starts at a beat. The beats are `a1`, `a1-gate`, `a2`, `a2-laban`, `a2-rock`, `a3`, `a3-laban`, `a3-treasury`, `a3-walls` and `home`.
 - `?auto` lets the game play itself. With `&hold` it is overtaken once in the chase before it leaves the property, and with `&wrong` it answers Zoram wrongly once each time and fills in every left-out word wrongly, so a test covers those ways too.
 

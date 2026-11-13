@@ -116,6 +116,9 @@ export const PEOPLE = [
   ['sariah', 'sariah', false, 0.93],
 ];
 
+/** What is written, small, over each of them the text names (names.js). `you` is the one you walk as. */
+export const NAMES = { you: 'Nephi', laman: 'Laman', lemuel: 'Lemuel', sam: 'Sam', laban: 'Laban', zoram: 'Zoram', lehi: 'Lehi', sariah: 'Sariah' };
+
 export function story(g) {
   const { P, C } = g;
   const yawTo = ([x0, z0], [x1, z1]) => Math.atan2(x1 - x0, z1 - z0);

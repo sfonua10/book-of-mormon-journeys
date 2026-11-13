@@ -7,7 +7,7 @@
 import * as furnace from './daniel.js';
 import { nephi } from './scripture.js';
 import { daniel } from './scripture-daniel.js';
-import { CLOTHES, PEOPLE, story } from './story.js';
+import { CLOTHES, NAMES, PEOPLE, story } from './story.js';
 
 export const GAME = {
   name: 'Scripture Journeys',
@@ -15,16 +15,40 @@ export const GAME = {
   save: 'bom-journeys',
 };
 
-/** The books the journeys are told from, in the order the first screen lists them. Each story names its `work`. */
+/**
+ * The standard works, in their order, and within each its books, in their order. The first screen is a tree of
+ * them: a work, its books under it, and a card under each book for each of its journeys. A book with no journey yet
+ * is shown greyed; a work with no journey at all, as coming. A book is one heading of journeys: a book of scripture
+ * (1 Nephi, Daniel), or where it reads better, the life of one prophet across several (Moses, Elijah). `face`: the
+ * portrait on its journeys' cards, in public/faces/, with `who` written under it (a story's own `face` takes its
+ * place). Each story names its `work` and its `book` (the book's id).
+ */
+const books = (...names) => names.map((name) => ({ id: name.toLowerCase().replace(/\s+/g, '-'), name }));
+
 export const WORKS = [
-  { id: 'bom', name: 'Book of Mormon' },
-  { id: 'ot', name: 'Old Testament' },
+  {
+    id: 'ot',
+    name: 'Old Testament',
+    books: [{ id: 'daniel', name: 'Daniel', face: { src: './faces/daniel.webp', who: 'Daniel' } }],
+  },
+  { id: 'nt', name: 'New Testament', books: [] },
+  {
+    id: 'bom',
+    name: 'Book of Mormon',
+    books: [
+      { id: '1-nephi', name: '1 Nephi', face: { src: './faces/nephi.webp', who: 'Nephi' } },
+      ...books('2 Nephi', 'Jacob', 'Enos', 'Jarom', 'Omni', 'Words of Mormon', 'Mosiah', 'Alma', 'Helaman', '3 Nephi', '4 Nephi', 'Mormon', 'Ether', 'Moroni'),
+    ],
+  },
+  { id: 'dc', name: 'Doctrine and Covenants', books: [] },
+  { id: 'pgp', name: 'Pearl of Great Price', books: [] },
 ];
 
 export const STORIES = [
   {
     id: 'plates-of-brass',
     work: 'bom',
+    book: '1-nephi',
     /** Its number among the journeys of its book. */
     number: 1,
     title: 'I Will Go and Do',
@@ -35,6 +59,7 @@ export const STORIES = [
     first: 'a1',
     beats: story,
     people: PEOPLE,
+    names: NAMES,
     clothes: CLOTHES,
     /** The book its cards quote (scripture.js). */
     scripture: nephi,
@@ -52,11 +77,12 @@ export const STORIES = [
       ],
     },
   },
-  // the teaser: what comes next week
-  { id: 'next', work: 'bom', number: 2, title: null, ref: null, released: false },
+  // the teaser: what comes next week (with no `book`, it is listed under its work's books, without a number)
+  { id: 'next', work: 'bom', book: null, number: 2, title: null, ref: null, released: false },
   {
     id: 'fiery-furnace',
     work: 'ot',
+    book: 'daniel',
     number: 1,
     title: 'But If Not',
     ref: 'Daniel 3',
@@ -65,6 +91,7 @@ export const STORIES = [
     first: 'a1',
     beats: furnace.story,
     people: furnace.PEOPLE,
+    names: furnace.NAMES,
     clothes: furnace.CLOTHES,
     scripture: daniel,
     /** Babylon, in place of Jerusalem (babylon.js), and its own people in place of Jerusalem's. */

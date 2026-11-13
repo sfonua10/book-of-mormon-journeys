@@ -119,6 +119,8 @@ function growTree(seed, o) {
   const nor = [];
   const bark = [];
   const idx = [];
+  // (the bole is the first of the tubes: how much of the list of triangles is its own)
+  let bole = 0;
   for (const tube of tubes) {
     const curve = tube.curve ?? new THREE.CatmullRomCurve3(tube.pts);
     const rows = tube.root ? 14 : 10;
@@ -147,6 +149,7 @@ function growTree(seed, o) {
         idx.push(a, b, a + 1, a + 1, b, b + 1);
       }
     }
+    if (tube.root) bole = idx.length;
   }
   const wood = new THREE.BufferGeometry();
   wood.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -163,7 +166,12 @@ function growTree(seed, o) {
   const cp = [];
   const cball = [];
   const crand = [];
+  // (and the same masses with a quarter of the triangles, for a tree so far off that a clump is a few pixels)
+  const fp = [];
+  const fball = [];
+  const frand = [];
   const ico = new THREE.IcosahedronGeometry(1, 1).attributes.position;
+  const icoFar = new THREE.IcosahedronGeometry(1, 0).attributes.position;
   const centre = new V3(0, crownY, 0);
   const x = new V3();
   const y = new V3();
@@ -186,6 +194,15 @@ function growTree(seed, o) {
         cp.push(clump.c.x + nx * k, clump.c.y + ny * k * 0.82, clump.c.z + nz * k);
         cball.push(nx, ny, nz);
         crand.push(tone, phase, open, clump.c.y);
+      }
+      for (let i = 0; i < icoFar.count; i++) {
+        const nx = icoFar.getX(i);
+        const ny = icoFar.getY(i);
+        const nz = icoFar.getZ(i);
+        const k = r * (0.9 + 0.2 * Math.sin(nx * 5 + phase * 9) * Math.sin(nz * 4 + ny * 3));
+        fp.push(clump.c.x + nx * k, clump.c.y + ny * k * 0.82, clump.c.z + nz * k);
+        fball.push(nx, ny, nz);
+        frand.push(tone, phase, open, clump.c.y);
       }
     }
     for (let k = 0; k < o.cards; k++) {
@@ -225,7 +242,12 @@ function growTree(seed, o) {
   core.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3));
   core.setAttribute('aBall', new THREE.Float32BufferAttribute(cball, 3));
   core.setAttribute('aRand', new THREE.Float32BufferAttribute(crand, 4));
-  return { wood, leaves, core, crown: o.crown, crownY, height: o.trunk + o.rise };
+  const coreFar = new THREE.BufferGeometry();
+  coreFar.setAttribute('position', new THREE.Float32BufferAttribute(fp, 3));
+  coreFar.setAttribute('aBall', new THREE.Float32BufferAttribute(fball, 3));
+  coreFar.setAttribute('aRand', new THREE.Float32BufferAttribute(frand, 4));
+  // (bole, girth, clump and coreFar: for drawing no more of a far tree than can be seen of it, in createTrees)
+  return { wood, leaves, core, coreFar, bole, girth: o.girth, clump: o.clump, crown: o.crown, crownY, height: o.trunk + o.rise };
 }
 
 /**
@@ -820,22 +842,99 @@ export function createTrees(field, { cards = 1 } = {}) {
   const matrix = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new V3(0, 1, 0);
+  // Each kind's trees, for drawing only what can be seen of them (see `cull`): where every one of them stands, the
+  // ball that holds each, its size, and how each was drawn last.
+  const sets = [];
+  const box = new THREE.Box3();
+  const ball = new THREE.Sphere();
+  const middle = new V3();
+  /** Some of a geometry's triangles as a geometry of its own: the same points, sent to the graphics card once. */
+  const some = (whole, start, count) => {
+    const part = new THREE.BufferGeometry();
+    for (const [name, attribute] of Object.entries(whole.attributes)) part.setAttribute(name, attribute);
+    part.setIndex(whole.index);
+    part.setDrawRange(start, count);
+    return part;
+  };
   kinds.forEach((kind, k) => {
     const mine = trees.filter((t) => t[2] === k);
     if (!mine.length) return;
-    const leaves = new THREE.InstancedMesh(kind.leaves, kind.frond ? frondMaterial : leafMaterial, mine.length);
-    const wood = new THREE.InstancedMesh(kind.wood, woodMaterial, mine.length);
-    const core = new THREE.InstancedMesh(kind.core, coreMaterial, mine.length);
+    const n = mine.length;
+    // A tree of the hills is drawn in parts, each only as far off as it can be seen: its bole; its limbs and
+    // boughs; the dark masses of its clumps, plainly made for those far off; its leaves. (A palm, whole.)
+    const parted = !!kind.coreFar;
+    const leaves = new THREE.InstancedMesh(kind.leaves, kind.frond ? frondMaterial : leafMaterial, n);
+    const wood = new THREE.InstancedMesh(parted ? some(kind.wood, 0, kind.bole) : kind.wood, woodMaterial, n);
+    const limbs = parted ? new THREE.InstancedMesh(some(kind.wood, kind.bole, kind.wood.index.count - kind.bole), woodMaterial, n) : null;
+    const core = new THREE.InstancedMesh(kind.core, coreMaterial, n);
+    const coreFar = parted ? new THREE.InstancedMesh(kind.coreFar, coreMaterial, n) : null;
+    // the ball that holds one tree of this kind as it was grown, standing at the origin
+    box.makeEmpty();
+    for (const part of [kind.leaves, kind.wood, kind.core]) {
+      if (!part.attributes.position?.count) continue;
+      part.computeBoundingBox();
+      box.union(part.boundingBox);
+    }
+    box.getBoundingSphere(ball);
+    const all = new Float32Array(n * 16);
+    const balls = new Float32Array(n * 4);
+    const sizes = new Float32Array(n);
     mine.forEach(([x, z, , scale, turn], i) => {
       q.setFromAxisAngle(up, turn);
-      matrix.compose(new V3(x, heightAt(x, z), z), q, new V3(scale, scale * (0.94 + 0.12 * ((i * 7) % 5) * 0.25), scale));
-      leaves.setMatrixAt(i, matrix);
-      wood.setMatrixAt(i, matrix);
-      core.setMatrixAt(i, matrix);
+      const tall = scale * (0.94 + 0.12 * ((i * 7) % 5) * 0.25);
+      matrix.compose(new V3(x, heightAt(x, z), z), q, new V3(scale, tall, scale));
+      matrix.toArray(all, i * 16);
+      // (and 2 m more: its crown rides the wind, and is drawn where the wind has put it)
+      middle.copy(ball.center).applyMatrix4(matrix);
+      balls.set([middle.x, middle.y, middle.z, ball.radius * Math.max(scale, tall) + 2], i * 4);
+      sizes[i] = scale;
     });
-    leaves.frustumCulled = wood.frustumCulled = core.frustumCulled = false;
-    group.add(wood, core, leaves);
+    // (the parts of a tree stand in the one place: one list of places serves them, nearest first, and each part is
+    // drawn for as many from its head as are near enough for it; the far masses have a list of their own)
+    const places = new THREE.InstancedBufferAttribute(all.slice(), 16);
+    places.setUsage(THREE.DynamicDrawUsage);
+    const farPlaces = new THREE.InstancedBufferAttribute(new Float32Array(parted ? n * 16 : 0), 16);
+    farPlaces.setUsage(THREE.DynamicDrawUsage);
+    const meshes = [wood, limbs, core, leaves].filter(Boolean);
+    for (const mesh of meshes) mesh.instanceMatrix = places;
+    if (coreFar) {
+      coreFar.instanceMatrix = farPlaces;
+      coreFar.count = 0;
+      coreFar.visible = false;
+      meshes.push(coreFar);
+    }
+    for (const mesh of meshes) mesh.frustumCulled = false;
+    group.add(...meshes);
+    // How far off each part can still be seen, as the tree's distance over its size and over the picture's pixels
+    // to a metre at a metre (so it holds for any screen and any lens): limbs while the thickest of them is 0.6 of a
+    // pixel across; the bole while it is 0.4 of one; a clump's mass as it was made while it is 5 pixels across,
+    // and past that the plainer one, which at that size is the same few pixels.
+    const reach = parted ? { limbs: (0.84 * kind.girth) / 0.6, wood: (2 * kind.girth) / 0.4, core: (1.4 * kind.clump) / 5 } : { limbs: Infinity, wood: Infinity, core: Infinity };
+    const steps = [reach.limbs, reach.wood, reach.core].sort((a, b) => a - b);
+    sets.push({
+      n,
+      all,
+      balls,
+      sizes,
+      places,
+      farPlaces,
+      steps,
+      // each part, and how many of the steps a tree may be past and still have it drawn
+      parts: [
+        { mesh: wood, within: steps.lastIndexOf(reach.wood) },
+        { mesh: limbs, within: steps.lastIndexOf(reach.limbs) },
+        { mesh: core, within: steps.lastIndexOf(reach.core) },
+        { mesh: leaves, within: 3 },
+      ].filter((part) => part.mesh),
+      coreFar,
+      coreWithin: steps.lastIndexOf(reach.core),
+      // which step each tree was at when last drawn (0: nearer than them all), or -1 for out of view
+      was: new Int8Array(n),
+      now: new Int8Array(n),
+    });
   });
+  const frustum = new THREE.Frustum();
+  const seen = new THREE.Matrix4();
 
   // ---- their shade on the ground ----
   const RES = 1024;
@@ -850,6 +949,81 @@ export function createTrees(field, { cards = 1 } = {}) {
   return {
     group,
     trees,
+    /**
+     * Draws only what the eye can see of the trees. Call each frame, once the camera is where it will be drawn
+     * from; `pixels` is the picture's height in pixels.
+     *
+     * There are a thousand trees and bushes, each some thousands of triangles. At any moment three in four are
+     * behind the eye or off to its sides, and of those in view most are hundreds of metres off, a few pixels each:
+     * the twigs inside such a bush are a small part of a pixel across, and were drawn, every one. All of it was most
+     * of the picture's work, on a phone more than it could do. Now a tree out of view is not drawn; nor are limbs
+     * too far off to be a pixel wide; and a far clump's dark mass is made of fewer triangles than a near one's.
+     * What can be seen is drawn as it was.
+     */
+    cull(camera, pixels) {
+      camera.updateMatrixWorld();
+      frustum.setFromProjectionMatrix(seen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+      const planes = frustum.planes;
+      const eye = camera.matrixWorld.elements;
+      // (pixels to a metre, a metre from the eye)
+      const lens = pixels ? pixels / (2 * Math.tan((camera.fov * Math.PI) / 360)) : Infinity;
+      for (const set of sets) {
+        const { n, balls, sizes, steps, was, now, all } = set;
+        let changed = false;
+        for (let i = 0; i < n; i++) {
+          const x = balls[i * 4];
+          const y = balls[i * 4 + 1];
+          const z = balls[i * 4 + 2];
+          const r = balls[i * 4 + 3];
+          let step = 0;
+          for (let p = 0; p < 6; p++) {
+            const plane = planes[p];
+            if (plane.normal.x * x + plane.normal.y * y + plane.normal.z * z + plane.constant < -r) {
+              step = -1;
+              break;
+            }
+          }
+          if (step === 0) {
+            const far = Math.sqrt((x - eye[12]) ** 2 + (y - eye[13]) ** 2 + (z - eye[14]) ** 2) / (sizes[i] * lens);
+            if (far > steps[0]) step = far > steps[1] ? (far > steps[2] ? 3 : 2) : 1;
+          }
+          now[i] = step;
+          if (step !== was[i]) changed = true;
+        }
+        // (the same trees, as near, as the frame before: nothing to send)
+        if (!changed) continue;
+        was.set(now);
+        // the list, nearest step first; and the far masses' own
+        const to = set.places.array;
+        const toFar = set.farPlaces.array;
+        const upTo = [0, 0, 0, 0];
+        let k = 0;
+        let f = 0;
+        for (let step = 0; step < 4; step++) {
+          for (let i = 0; i < n; i++) {
+            if (now[i] !== step) continue;
+            const from = i * 16;
+            for (let e = 0; e < 16; e++) to[k * 16 + e] = all[from + e];
+            k++;
+            if (set.coreFar && step > set.coreWithin) {
+              for (let e = 0; e < 16; e++) toFar[f * 16 + e] = all[from + e];
+              f++;
+            }
+          }
+          upTo[step] = k;
+        }
+        set.places.needsUpdate = true;
+        for (const part of set.parts) {
+          part.mesh.count = upTo[part.within];
+          part.mesh.visible = part.mesh.count > 0;
+        }
+        if (set.coreFar) {
+          set.farPlaces.needsUpdate = true;
+          set.coreFar.count = f;
+          set.coreFar.visible = f > 0;
+        }
+      }
+    },
     /** Lays every crown's shadow on the ground for this sun. Call when the hour changes. */
     cast(sunDir) {
       data.fill(0);

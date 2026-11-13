@@ -651,22 +651,29 @@ export function createFrame(renderer, field, { samples = 4, fireScale = 0.5, blo
       renderer.setRenderTarget(rtScene);
       renderer.render(scene, camera);
       const anyFire = state.burning > 0 || frame.torch.size > 0;
-      if (anyFire) pass(marchMaterial, rtFire);
-      else {
-        renderer.setRenderTarget(rtFire);
-        renderer.setClearColor(0x000000, 0);
-        renderer.clear();
+      // With no fire and no smoke or sparks there is nothing to lay over the scene: what follows reads the scene
+      // as it was drawn, and the whole picture is not copied once more for nothing (a phone feels each such copy).
+      const plain = !anyFire && !particles.count;
+      if (!plain) {
+        if (anyFire) pass(marchMaterial, rtFire);
+        else {
+          renderer.setRenderTarget(rtFire);
+          renderer.setClearColor(0x000000, 0);
+          renderer.clear();
+        }
+        pass(compositeMaterial, rtComposite);
+        if (particles.count) {
+          const auto = renderer.autoClear;
+          renderer.autoClear = false;
+          renderer.setRenderTarget(rtComposite);
+          renderer.render(particles.scene, camera);
+          renderer.autoClear = auto;
+        }
       }
-      pass(compositeMaterial, rtComposite);
-      if (particles.count) {
-        const auto = renderer.autoClear;
-        renderer.autoClear = false;
-        renderer.setRenderTarget(rtComposite);
-        renderer.render(particles.scene, camera);
-        renderer.autoClear = auto;
-      }
+      const hdr = plain ? rtScene : rtComposite;
+      finalMaterial.uniforms.tHdr.value = hdr.texture;
 
-      let src = rtComposite;
+      let src = hdr;
       for (let i = 0; i < rtDown.length; i++) {
         const m = i === 0 ? bloomFirst : bloomDown;
         m.uniforms.tSrc.value = src.texture;
