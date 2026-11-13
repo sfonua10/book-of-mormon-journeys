@@ -35,7 +35,8 @@ try {
   // (no .env)
 }
 const KEY_ = env.ELEVENLABS_API_KEY;
-const voice = flag('voice', env.ELEVENLABS_VOICE_ID);
+// (Brian, one of ElevenLabs' own voices: "deep, resonant and comforting". The family's choice for the journeys.)
+const voice = flag('voice', env.ELEVENLABS_VOICE_ID ?? 'nPczCjzI2devNBz1zQrb');
 const model = flag('model', env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2');
 const format = flag('format', 'mp3_44100_64');
 const API = 'https://api.elevenlabs.io';
@@ -43,7 +44,7 @@ const API = 'https://api.elevenlabs.io';
 /** The verses that carry the story: made first, whatever else there is room for. */
 const KEY = ['3:7', '3:15', '3:29', '4:1', '4:6', '4:10', '4:11', '4:12-4:13', '4:32', '4:33', '4:35', '5:8', '5:21'];
 /** How the names are said, spelt so that a voice says them so. Sent in place of the names (unless --plain). */
-const NAMES = { Nephi: 'Nee-fye', Lehi: 'Lee-hye', Laban: 'Lay-bun', Laman: 'Lay-mun', Lemuel: 'Lem-yool', Zoram: 'Zore-um', Sariah: 'Suh-rye-uh' };
+const NAMES = { Nephi: 'Nee-fye', Lehi: 'Lee-hi', Laban: 'Lay-bin', Laman: 'Lay-men', Lemuel: 'Lem-yool', Zoram: 'Zo-rum', Sariah: 'Suh-rye-uh' };
 
 const slug = (ref) => ref.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const spoken = (text) => (has('plain') ? text : text.replace(new RegExp(`\\b(${Object.keys(NAMES).join('|')})\\b`, 'g'), (n) => NAMES[n]));

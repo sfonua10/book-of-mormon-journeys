@@ -9,6 +9,7 @@
 | `src/game/` (the story, the city, the cast, the director, the cards, the leading light) | Written for this game | MIT; what it draws CC0 | Yes |
 | `src/game/scripture.js` (1 Nephi 3–5) | The Book of Mormon, Project Gutenberg eBook #17, generated from its text | Public domain | Yes |
 | Changes in `src/valley/` and `src/lib/` (the hill country, its palette, the night, the head cloth, the made sounds) | Edits for this game to Painted valley's files | MIT | Yes |
+| `public/audio/narration/*.mp3` (the scripture read aloud) | Made with ElevenLabs text to speech (its own voice "Brian", model `eleven_multilingual_v2`) by `tools/narrate.mjs`, from the public-domain text | Made on ElevenLabs' free plan, whose terms allow non-commercial use only: this game is free and carries no advertising. Not CC0; not to be reused commercially | Yes |
 | `lib/patch-block.js` | **Replaced** by a short stand-in written for this game; Patch's own helper is not carried | MIT | Yes |
 | `public/figure/*.glb`, `public/textures/*` | As below, fetched from Painted valley's repository and checked against their LFS checksums. Kept in plain Git here, not LFS | As below | Yes |
 

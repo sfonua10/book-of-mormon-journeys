@@ -20,3 +20,7 @@ The land, sky, clouds, mountains, village, trees, stones and water are made in c
 - Scripture: 1 Nephi 3–5 from the Book of Mormon, public domain text (Project Gutenberg eBook #17).
 - Wind and crickets are made in code; the footsteps are Kenney's (CC0).
 - This is an independent project, not an official product of The Church of Jesus Christ of Latter-day Saints.
+
+## The reading
+
+The scripture is read aloud in a voice made with ElevenLabs (elevenlabs.io) text to speech.

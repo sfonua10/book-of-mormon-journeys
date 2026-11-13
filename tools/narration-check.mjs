@@ -1,4 +1,5 @@
-// Checks the reading aloud with two stand-in recordings put into dist/ (the PC's own voice, never published): a
+// Checks the reading aloud, with the build's recordings or, where it has none, a stand-in put into dist/ (the PC's
+// own voice, never published): a
 // card with a recording goes on by itself when it has been read, a press still goes on at once, and with the
 // reading off the card waits.   CHROME=... node tools/narration-check.mjs   (after npm run build; needs ffmpeg, say)
 import { execFileSync } from 'node:child_process';
@@ -13,15 +14,15 @@ const root = resolve(here, 'dist');
 const dir = join(root, 'audio/narration');
 const manifest = join(dir, 'manifest.json');
 const kept = existsSync(manifest) ? readFileSync(manifest, 'utf8') : null;
-if (kept && kept.trim() !== '{}') {
-  console.log('dist has real recordings: this check is for a build without them');
-  process.exit(0);
+// (with real recordings in the build, they are what is checked; without, a stand-in is made and taken away again)
+const real = !!kept && kept.trim() !== '{}';
+if (!real) {
+  mkdirSync(dir, { recursive: true });
+  execFileSync('say', ['-o', join(dir, 'x.aiff'), 'I will go and do.']);
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', join(dir, 'x.aiff'), '-ac', '1', '-b:a', '64k', join(dir, '1-nephi-3-7.mp3')]);
+  rmSync(join(dir, 'x.aiff'));
+  writeFileSync(manifest, '{"1-nephi-3-7":"test"}');
 }
-mkdirSync(dir, { recursive: true });
-execFileSync('say', ['-o', join(dir, 'x.aiff'), 'I will go and do.']);
-execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', join(dir, 'x.aiff'), '-ac', '1', '-b:a', '64k', join(dir, '1-nephi-3-7.mp3')]);
-rmSync(join(dir, 'x.aiff'));
-writeFileSync(manifest, '{"1-nephi-3-7":"test"}');
 
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.glb': 'model/gltf-binary' };
 const server = createServer((req, res) => {
@@ -77,7 +78,7 @@ try {
   let s = await open();
   check(s.card.includes('3:7'), `the first card is the one with a recording (${s.card})`);
   check(await page.evaluate(() => window.__tg.sounds.context?.state === 'running'), 'the sound is running');
-  s = await run(12, 'gone');
+  s = await run(40, 'gone');
   check(!s.card.includes('3:7') && s.took > 1, `read to its end, the card goes on by itself (after ${s.took.toFixed(1)} s)`);
 
   s = await open();
@@ -102,8 +103,10 @@ try {
   await page.screenshot({ path: join(here, 'shots', 'touch', '6-voice.png') });
   if (problems.length) fails.push(...problems), console.log(problems.join('\n'));
 } finally {
-  rmSync(join(dir, '1-nephi-3-7.mp3'), { force: true });
-  writeFileSync(manifest, kept ?? '{}\n');
+  if (!real) {
+    rmSync(join(dir, '1-nephi-3-7.mp3'), { force: true });
+    writeFileSync(manifest, kept ?? '{}\n');
+  }
   await browser.close();
   server.close();
 }
