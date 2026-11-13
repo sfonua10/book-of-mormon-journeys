@@ -6,6 +6,7 @@
     <title>Scripture Journeys: Painted Walking Games Through the Scriptures</title>
     <meta name="description" content="Free painted walking games through the scriptures, in your browser: go with Nephi for the plates (1 Nephi 3–4) and stand by the fiery furnace (Daniel 3)." />
     <link rel="canonical" href="https://sfonua10.github.io/scripture-journeys/" />
+    <meta name="google-site-verification" content="zcstin9CT2hnUV3tJXSgw_uajmMdwI9vVxYBQyL_eQs" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Scripture Journeys" />
     <meta property="og:title" content="Scripture Journeys" />
@@ -120,7 +121,16 @@
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
       }
     </script>
-    <script defer src="https://cloud.umami.is/script.js" data-website-id="50f51848-0c89-4716-91d4-e50736c1fd9b"></script>
+    <!-- Counts visits, without cookies (src/game/tally.js counts the journeys through it). Only on the game's own
+         address, so that a developer's machine and the tests are not counted: if the game moves to another address,
+         name it in data-domains (several are divided by commas) or nothing will be counted there. -->
+    <script
+      defer
+      src="https://cloud.umami.is/script.js"
+      data-website-id="50f51848-0c89-4716-91d4-e50736c1fd9b"
+      data-domains="sfonua10.github.io"
+      data-do-not-track="true"
+    ></script>
   </head>
   <body>
     <header class="about">
