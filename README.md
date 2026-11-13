@@ -1,10 +1,12 @@
 # Scripture Journeys
 
+**Play it: <https://sfonua10.github.io/scripture-journeys/>**
+
 Painted walking games through the scriptures, one journey at a time. The first screen asks for a book of scripture (the Book of Mormon, the Old Testament), then lists that book's journeys, with the next one shown as coming.
 
 Adding a journey: write its story beside `src/game/story.js`, give it an entry in `src/game/stories.js` with its `work` (the book it belongs to), its `scripture` (the verses its cards quote) and `released: true`. A journey may bring its own land (`land`: the hill country round Jerusalem, or `'plain'`, the river plain of Babylon, in `src/valley/world.js`), its own city (`look`), people and clothes, as the Daniel journey does (`src/game/daniel.js`, `src/game/babylon.js`). Each journey keeps its own place in the browser.
 
-(The game was first called Book of Mormon Journeys; the web address and the repository keep that name.)
+(The game was first called Book of Mormon Journeys, when the Book of Mormon was all it held. The old web address and the old repository name redirect to the new ones.)
 
 ## Book of Mormon, Journey 1: I Will Go and Do
 
