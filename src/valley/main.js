@@ -19,6 +19,7 @@ import { createSky, createSkyParts, SUNSET } from './sky.js';
 import { createSounds } from './sounds.js';
 import { createStrokes } from './strokes.js';
 import { createTrees } from './trees.js';
+import { createRiver } from './water.js';
 import { CLOTHES, createWanderer } from './wanderer.js';
 import { addCityColliders, createCity, createProps, TURN as CITY_TURN } from '../game/city.js';
 import { createDirector } from '../game/director.js';
@@ -31,12 +32,15 @@ import { GAME, keeper, STORIES, storyById, WORKS } from '../game/stories.js';
 import { createUI } from '../game/ui.js';
 import { createTouch, wantsTouch } from '../game/touch.js';
 import { loadMan } from '../figure/man.js';
-import { fromValley, heightAt, HERO, paint, START, tarnDistance } from './world.js';
-import { CITY, IN_CITY } from '../game/places.js';
+import { fromValley, heightAt, HERO, LAND, paint, setLand, START, tarnDistance } from './world.js';
+import { CITY, IN_CITY, PLAIN } from '../game/places.js';
 
 const params = new URLSearchParams(location.search);
 // the journey this page plays (?story=id): the first, if none is asked for
 const journey = storyById(params.get('story'));
+// the land it is told in: the hill country round Jerusalem, unless it brings its own (Babylon's plain). Chosen before
+// anything reads the ground, here and in the worker that bakes it.
+setLand(journey.land ?? 'hills');
 const { people: PEOPLE, clothes: STORY_CLOTHES } = journey;
 // how long each part of getting ready took, ms: for tests
 const timings = {};
@@ -99,8 +103,8 @@ const EXTENT = 1280;
 const GROUND = { extent: EXTENT, extentRes: EXTENT, centre: [0, 0] };
 const FLOOR_SIZE = quality === 'low' ? 1024 : 1536;
 const hour0 = params.has('hour') ? Number(params.get('hour')) : 15.5;
-const groundJob = offThread({ job: 'ground', ...GROUND }, () => bakeGround({ heightAt, paint, ...GROUND }));
-const floorJob = offThread({ job: 'floor', size: FLOOR_SIZE }, () => ({ pixels: paintFloor(FLOOR_SIZE) }));
+const groundJob = offThread({ job: 'ground', land: LAND, ...GROUND }, () => bakeGround({ heightAt, paint, ...GROUND }));
+const floorJob = offThread({ job: 'floor', land: LAND, size: FLOOR_SIZE }, () => ({ pixels: paintFloor(FLOOR_SIZE) }));
 await stage(0.04, 'Painting the sky');
 // Sound is made ready now, while the land is being made: opening the PC's audio can hold a page's thread for a
 // second or more, and here nothing is waiting on it. It only starts playing on the first click.
@@ -140,6 +144,7 @@ const skyParts = createSkyParts(renderer, {
   cloudSteps: quality === 'low' ? 150 : 240,
   liveClouds: quality !== 'low',
   backdropWidth: quality === 'high' ? 12288 : 4096,
+  land: LAND,
 });
 const skyReady = (async () => {
   const from = performance.now();
@@ -174,6 +179,8 @@ const field = createField({
   seed: 3,
 });
 scene.add(field.group);
+// (the land's own colours: the hill country's, or the river plain's)
+field.uniforms.uLand.value = LAND === 'plain' ? 1 : 0;
 // (the man is the biggest thing to fetch: asked for now, he arrives while the rest is made. Nephi and everyone else
 // in the story are copies of him, each dressed in his own colours.)
 const manComing = loadMan({ base: './figure/' });
@@ -207,7 +214,8 @@ mark('strokes');
   slope.unpackAlignment = 1;
   slope.needsUpdate = true;
   field.uniforms.tSlope.value = slope;
-  field.uniforms.uHeroEye.value.set(START[0], field.heightAt(START[0], START[1]) + 1.68, START[1]);
+  // (on the level plain the far ground is painted as from a little height, or its brushwork would lie in streaks)
+  field.uniforms.uHeroEye.value.set(START[0], field.heightAt(START[0], START[1]) + (LAND === 'plain' ? 45 : 1.68), START[1]);
 }
 mark('floor');
 await stage(0.3, 'Building the village');
@@ -223,6 +231,8 @@ mark('farWoods');
 const city = createCity(field, journey.look);
 mark('city');
 scene.add(sky.mesh, createHorizon(field, EXTENT / 2), trees.group, farWoods.group, city.mesh);
+// the river plain's river and canals
+if (LAND === 'plain') scene.add(createRiver(field, sky, PLAIN.river.level, EXTENT));
 // the finish: the frame laid in as brush marks. ?paint=0 for none; P turns it on and off.
 frame.paint = params.has('paint') ? Number(params.get('paint')) : quality === 'low' ? 0 : quality === 'medium' ? 2 : 3;
 const paintWas = frame.paint || 3;

@@ -1,6 +1,16 @@
-// Where everything in 1 Nephi 3–4 happens, in one place so the land, the city and the story agree.
+// Where everything in 1 Nephi 3–4 happens, in one place so the land, the city and the story agree; and, for the
+// journeys told in Babylon, the plain the city stands on there (PLAIN).
 // Positions are (u, v): metres down the valley from the camp and metres to the right of that line, as world.js has
 // them. fromValley turns them into world (x, z).
+
+/**
+ * Which land the page is laid out on: 'hills', the hill country round Jerusalem, or 'plain', the river plain of
+ * Babylon. A page plays one journey, so it is chosen once, before anything is made (world.js, setLand).
+ */
+export let LAND = 'hills';
+export function chooseLand(name) {
+  LAND = name === 'plain' ? 'plain' : 'hills';
+}
 
 /** The brothers' tents, outside the city, where the walk starts (1 Nephi 3:9–10). */
 export const CAMP = [0, 0];
@@ -74,8 +84,40 @@ export const KEEP_CLEAR = [
 /** Whether a tree, bush or stone at (u, v) would stand somewhere the story needs open: the city and the places. */
 export function keepClear(u, v, margin = 0) {
   if (cityDistance(u, v) < 14 + margin) return true;
-  for (const [cu, cv, r] of KEEP_CLEAR) if (Math.hypot(u - cu, v - cv) < r + margin) return true;
+  for (const [cu, cv, r] of LAND === 'plain' ? PLAIN.keep : KEEP_CLEAR) if (Math.hypot(u - cu, v - cv) < r + margin) return true;
   return false;
+}
+
+/**
+ * The plain of Babylon, for the journeys told there. The city keeps the same place (CITY), its gate in the west
+ * wall; the Euphrates runs past it on its right hand (+v), and the plain of Dura lies before the gate.
+ */
+export const PLAIN = {
+  /** The river: its middle (see riverMiddle), its half-width, and the level of its water, metres. */
+  river: { v: 135, half: 36, level: -1.25 },
+  /** Canals that water the fields, each a line of (u, v) points; how wide they are to either side of it. */
+  canals: [
+    [[-760, -210], [760, -210]],
+    [[-150, 112], [-150, -210]],
+  ],
+  canalHalf: 2.2,
+  /** The road out of the gate, a little raised above the plain, to where the image of gold is set up. */
+  road: [[GATE[0] + 4, 0], [GATE[0] - 60, 0], [150, 0]],
+  /** How far either side of the road's middle is trodden bare, metres. */
+  roadHalf: 6,
+  /** The plain of Dura (Daniel 3:1): the open ground before the gate, its middle and how far it reaches. */
+  dura: [170, 0, 62],
+  /** Places nothing should be planted on: [u, v, radius]. */
+  keep: [
+    [170, 0, 80],
+    [205, -36, 30],
+    [GATE[0] - 30, 0, 26],
+  ],
+};
+
+/** The middle of the river, metres to the right of the valley's line at u: it bends a little, slowly. */
+export function riverMiddle(u) {
+  return PLAIN.river.v + 20 * Math.sin(u / 600 + 0.4) + 7 * Math.sin(u / 230 + 1.3);
 }
 
 /**

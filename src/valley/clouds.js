@@ -115,7 +115,7 @@ function billowTexture(size = 64) {
  * heaped clouds to either side of it, fair-weather cumulus scattered nearer, and a bank lying along the mountains'
  * feet. Metres, with the start of the walk at the origin.
  */
-function layout(hero) {
+function layout(hero, land = 'hills') {
   const random = mulberry(4);
   const [dx, dz] = hero;
   const at = (u, v) => [u * dx - v * dz, u * dz + v * dx];
@@ -157,6 +157,13 @@ function layout(hero) {
     }
     clouds.push({ puffs: list.slice(0, PER_CLOUD), base, scale: width * 0.07 });
   };
+  // (over the river plain of Babylon the sky is nearly clear: three small clouds, high and far off)
+  if (land === 'plain') {
+    cumulus(14000, -7000, 1700, 2600, 800, 8);
+    cumulus(-9000, 11000, 1800, 2000, 650, 7);
+    cumulus(16000, 10000, 1750, 3000, 900, 9);
+    return clouds;
+  }
   // the tower, a little right of where the valley points
   cumulus(19000, 5200, 1500, 14500, 10800, 42, 3);
   cumulus(15500, -12500, 1450, 8200, 5200, 28, 2);
@@ -366,11 +373,12 @@ void main() {
 
 /**
  * @param hero the way the valley runs, (x, z)
- * @param options.size texels along a side of each face of the cube; options.steps the marcher's
+ * @param options.size texels along a side of each face of the cube; options.steps the marcher's;
+ *   options.layout the land they are over: 'hills' (the default) or 'plain'
  * @param options.live false to draw the clouds once and leave them
  */
-export function createClouds(renderer, hero, { size = 1024, steps = 110, live = true } = {}) {
-  const clouds = layout(hero);
+export function createClouds(renderer, hero, { size = 1024, steps = 110, live = true, layout: land = 'hills' } = {}) {
+  const clouds = layout(hero, land);
   const puffs = [];
   const spheres = [];
   const info = [];

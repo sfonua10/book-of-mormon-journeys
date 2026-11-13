@@ -2,7 +2,22 @@
 // the land falls away ahead and rises again to the city on its own hill, dry hills close it in on both sides and
 // behind, and far off are mountains. Plain functions of (x, z), read once by the field and by the far land.
 // (Remixed from Painted Valley's summer valley: the tarn is gone, the city's rise is new; see src/game/places.js.)
-import { CITY, cityDistance, LEHI_HOUSE, PATHS } from '../game/places.js';
+//
+// Or, for the journeys told in Babylon, the river plain there (setLand('plain')): level silt with no hill anywhere,
+// the Euphrates going by the city, canals off it and fields along them. The same functions answer for either.
+import { chooseLand, CITY, cityDistance, LAND, LEHI_HOUSE, PATHS, PLAIN, riverMiddle } from '../game/places.js';
+
+export { LAND };
+
+/**
+ * Lays the page out on a land: 'hills' (Jerusalem's, the first journey's) or 'plain' (Babylon's). Called once, as
+ * soon as the journey is known and before anything reads the ground, here and in the worker that bakes it.
+ */
+export function setLand(name) {
+  chooseLand(name);
+  cityLevel = null;
+  lehiLevel = null;
+}
 
 /** The way the valley runs from the start, a unit vector (x, z). */
 export const HERO = [0.6, 0.8];
@@ -84,8 +99,18 @@ export const smooth = (a, b, x) => {
   return t * t * (3 - 2 * t);
 };
 
-/** 0 in the middle of the tarn, 1 at its shore, more outside. */
+/**
+ * 0 in the middle of the tarn, 1 at its shore, more outside. On the plain it is the river and the canals that answer:
+ * 1 a little way up the bank from the water, so that what keeps you from wading stops you on the bank.
+ */
 export function tarnDistance(x, z) {
+  if (LAND === 'plain') {
+    const u = x * DX + z * DZ;
+    const v = -x * DZ + z * DX;
+    let t = Math.abs(v - riverMiddle(u)) / ((PLAIN.river.half + 2) / 0.88);
+    for (const line of PLAIN.canals) t = Math.min(t, lineDistance(u, v, line) / ((PLAIN.canalHalf + 1.2) / 0.88));
+    return t;
+  }
   const dx = x - TARN.at[0];
   const dz = z - TARN.at[1];
   // its long side lies across the valley, and its shore wanders
@@ -104,12 +129,15 @@ function riverLine(u) {
 export function riverDistance(x, z) {
   const u = x * DX + z * DZ;
   const v = -x * DZ + z * DX;
+  // (the Euphrates bends so gently that across it is as good as the way to it)
+  if (LAND === 'plain') return Math.abs(v - riverMiddle(u));
   const slope = (330 / 520) * Math.cos(u / 520 + 0.6) + (80 / 170) * Math.cos(u / 170 + 2) - (u > -400 ? (900 / 350) * Math.exp(-u / 350) : 0);
   return Math.abs(v - riverLine(u)) / Math.sqrt(1 + slope * slope);
 }
 
 /** 0 to 1: how much of the far land at (x, z) is ploughed and hedged, the fields round the hamlet. */
 export function fieldsAt(x, z) {
+  if (LAND === 'plain') return 0;
   const u = x * DX + z * DZ;
   const v = -x * DZ + z * DX;
   const d = Math.hypot((u - 1350) / 1000, (v + 60) / 820) + (fbm(x / 600 + 4, z / 600 + 8, 2, 83) - 0.5) * 0.4;
@@ -119,6 +147,8 @@ export function fieldsAt(x, z) {
 
 /** 0 to 1: forest on the far land at (x, z). None near the walk, none on the fields or the river's banks. */
 export function forestAt(x, z) {
+  // (no woods on the river plain: its trees are palms, set out by hand)
+  if (LAND === 'plain') return 0;
   const r = Math.hypot(x, z);
   let f = smooth(0.44, 0.52, fbm(x / 1700 + 7.3, z / 1700 + 3.1, 4, 91) * 0.72 + fbm(x / 430 + 1.7, z / 430 + 5.9, 3, 97) * 0.28);
   // the hills carry more of it than the plain
@@ -194,7 +224,35 @@ function wildLand(x, z) {
 const tarnFloor = land(TARN.at[0], TARN.at[1]);
 TARN.level = tarnFloor - 0.55;
 
+/**
+ * The plain of Babylon: silt laid down by the river, level to within a stride, so that nothing stands on the
+ * horizon but what was built or planted. The city's ground is made level; the road out of its gate is raised a
+ * little; the river has a low bank of its own and its bed is below the water; the canals are cut narrow and full.
+ */
+function plainLand(x, z) {
+  const u = x * DX + z * DZ;
+  const v = -x * DZ + z * DX;
+  // (rises and hollows too low to be seen as such, enough to catch the light)
+  let h = (fbm(x / 190 + 3.1, z / 190 - 1.7, 3, 1) - 0.5) * 1.1 + (fbm(x / 47 + 9.3, z / 47 + 4.1, 2, 5) - 0.5) * 0.3;
+  const d = cityDistance(u, v);
+  if (d <= 30) h += (0.4 - h) * (1 - smooth(4, 30, d));
+  h += 0.35 * (1 - smooth(PLAIN.roadHalf - 1, PLAIN.roadHalf + 3, lineDistance(u, v, PLAIN.road)));
+  const { half, level } = PLAIN.river;
+  const r = Math.abs(v - riverMiddle(u));
+  h += 0.5 * Math.exp(-(((r - half - 12) / 7) ** 2));
+  const bed = level - 0.5 - 2.6 * (1 - smooth(0, half, r));
+  h = bed + (h - bed) * smooth(half - 2, half + 7, r);
+  for (const line of PLAIN.canals) {
+    const c = lineDistance(u, v, line);
+    if (c > PLAIN.canalHalf + 3) continue;
+    const floor = level - 0.7;
+    h = floor + (h - floor) * smooth(PLAIN.canalHalf - 0.8, PLAIN.canalHalf + 1.5, c);
+  }
+  return h;
+}
+
 export function heightAt(x, z) {
+  if (LAND === 'plain') return plainLand(x, z);
   let h = land(x, z);
   const t = tarnDistance(x, z);
   if (t < 2.2) {
@@ -225,6 +283,8 @@ function lineDistance(u, v, line) {
 export function pathDistance(x, z) {
   const u = x * DX + z * DZ;
   const v = -x * DZ + z * DX;
+  // (on the plain, the one road out of the gate: straight, and broad)
+  if (LAND === 'plain') return Math.max(0, lineDistance(u, v, PLAIN.road) - PLAIN.roadHalf);
   // (each path wanders a little off its straight lines)
   const wander = 2.2 * Math.sin(u / 23 + v / 31) + 1.4 * Math.sin(u / 9.7 - v / 13);
   let best = 1e3;
@@ -232,7 +292,89 @@ export function pathDistance(x, z) {
   return Math.max(0, best - 0.6);
 }
 
+function hash1(i, salt) {
+  return hash(i, salt, 911);
+}
+
+/**
+ * The field at (u, v) on the plain, if any: the land along each canal is laid out in long strips running back from
+ * it, each sown or left as its owner has it. 0: no field; 1: barley, green; 2: stubble; 3: fallow, bare. `edge` is
+ * how far it is to the strip's side, metres.
+ */
+const STRIP = { kind: 0, edge: 0 };
+export function plainField(u, v) {
+  STRIP.kind = 0;
+  STRIP.edge = 0;
+  const [a, b] = PLAIN.canals;
+  // along the first canal (it runs down the valley): strips across it, 28 m wide, reaching back from it
+  {
+    const at = a[0][1];
+    const i = Math.floor((u + 7) / 28);
+    const reach = 110 + 100 * hash1(i, 1);
+    const off = v - at;
+    // (none on the near side within reach of the plain of Dura)
+    if (Math.abs(off) < reach && Math.abs(off) > PLAIN.canalHalf + 3 && (off < 0 || v < -100)) {
+      STRIP.kind = 1 + Math.floor(hash1(i * 2 + (off < 0 ? 1 : 0), 2) * 2.999);
+      STRIP.edge = Math.min(u + 7 - i * 28, (i + 1) * 28 - u - 7);
+      return STRIP;
+    }
+  }
+  // along the second (it runs across, from the river): strips down the valley, either side of it
+  {
+    const at = b[0][0];
+    const j = Math.floor((v + 11) / 26);
+    const reach = 100 + 120 * hash1(j + 50, 3);
+    const off = u - at;
+    if (Math.abs(off) < reach && Math.abs(off) > PLAIN.canalHalf + 3 && v < b[0][1] - 6 && v > a[0][1] && u < 70) {
+      STRIP.kind = 1 + Math.floor(hash1(j * 2 + (off < 0 ? 1 : 0) + 100, 4) * 2.999);
+      STRIP.edge = Math.min(v + 11 - j * 26, (j + 1) * 26 - v - 11);
+    }
+  }
+  return STRIP;
+}
+
+/** What grows on the plain: thin dry grass on dusty silt, the fields along the canals, rank green by the water. */
+function plainPaint(x, z) {
+  const u = x * DX + z * DZ;
+  const v = -x * DZ + z * DX;
+  const clumps = fbm(x / 9 + 1.3, z / 9 - 4.1, 3, 41) * 0.6 + fbm(x / 70 - 3.3, z / 70 + 2.7, 2, 43) * 0.4;
+  let growth = 0.16 + 0.72 * smooth(0.38, 0.64, clumps);
+  let dry = 0.84 + 0.16 * smooth(0.4, 0.66, fbm(x / 90 + 2.2, z / 90 + 8.1, 3, 21));
+  let wet = 0;
+  const f = plainField(u, v);
+  if (f.kind) {
+    // (between strips, a low bank with weeds on it)
+    const bund = 1 - smooth(0.4, 1.3, f.edge);
+    if (f.kind === 1) {
+      growth = Math.max(bund * 0.6, 0.94 + 0.06 * clumps);
+      dry = 0.08 + 0.1 * clumps;
+      wet = 0.55;
+    } else if (f.kind === 2) {
+      growth = 0.55 + 0.3 * clumps;
+      dry = 1;
+      wet = 0.12;
+    } else {
+      // (ploughed and left: dark, damp silt)
+      growth = bund * 0.5;
+      wet = 0.65;
+    }
+  }
+  // the river's bank and the canals' sides: reeds and rank green down to the water
+  const water = tarnDistance(x, z);
+  const rank = 1 - smooth(1.0, 1.35, water);
+  growth = Math.max(growth, rank * (0.8 + 0.2 * clumps));
+  dry *= 1 - 0.85 * rank;
+  wet = Math.max(wet, rank * 0.7);
+  // trodden bare: the road, round the city's walls, and the plain of Dura where the people stand
+  growth = Math.min(growth, smooth(0, 3, pathDistance(x, z) + (fbm(x / 2.7, z / 2.7, 2, 61) - 0.5) * 1.2));
+  growth *= smooth(-2, 12, cityDistance(u, v));
+  const [du, dv, dr] = PLAIN.dura;
+  growth *= smooth(dr * 0.75, dr * 1.05, Math.hypot(u - du, v - dv) + (fbm(x / 9, z / 9, 2, 63) - 0.5) * 14);
+  return { dry: dry * (1 - wet), growth, wet, flowers: 0 };
+}
+
 export function paint(x, z) {
+  if (LAND === 'plain') return plainPaint(x, z);
   const u = x * DX + z * DZ;
   const v = -x * DZ + z * DX;
   // dry nearly everywhere: grass gone to straw, sage and thorn in the hollows

@@ -6,7 +6,7 @@ import { COMMON } from '../lib/index.js';
 import { along, FARMS, fieldAt, FLOOR, MILL, ROADS, VILLAGE } from './floor.js';
 import { REACH } from './horizon.js';
 import { VILLAGE_SIZE } from './village.js';
-import { fbm, fieldsAt, forestAt, fromValley, heightAt, riverDistance } from './world.js';
+import { fbm, fieldsAt, forestAt, fromValley, heightAt, LAND, riverDistance } from './world.js';
 
 const TAU = Math.PI * 2;
 
@@ -447,8 +447,10 @@ export function createFarWoods(field) {
     dim.push(w, w * (fir ? 1.18 : 0.8) * (0.85 + 0.3 * random()));
     look.push((fir ? 0 : 2) + (random() < 0.5 ? 0 : 1), random());
   };
+  // (the hill country's woods, fields and roads: the river plain has its own, below)
+  const hills = LAND !== 'plain';
   const STEP = 31;
-  for (let gz = -REACH; gz < REACH; gz += STEP) {
+  for (let gz = -REACH; hills && gz < REACH; gz += STEP) {
     for (let gx = -REACH; gx < REACH; gx += STEP) {
       const x = gx + random() * STEP;
       const z = gz + random() * STEP;
@@ -484,7 +486,7 @@ export function createFarWoods(field) {
   for (const line of ROADS) for (const [u, v] of along(line, 3)) onRoad.add(Math.round(u / 9) + ',' + Math.round(v / 9));
   const planted = new Set();
   const S = 7;
-  for (let gv = FLOOR.v0; gv < FLOOR.v0 + FLOOR.size; gv += S) {
+  for (let gv = FLOOR.v0; hills && gv < FLOOR.v0 + FLOOR.size; gv += S) {
     for (let gu = FLOOR.u0; gu < FLOOR.u0 + FLOOR.size; gu += S) {
       const u = gu + random() * S;
       const v = gv + random() * S;
@@ -513,7 +515,7 @@ export function createFarWoods(field) {
     }
   }
   // poplars along stretches of the road
-  {
+  if (hills) {
     const line = along(ROADS[0], 1);
     let gone = 0;
     let next = 30;

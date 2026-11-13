@@ -1,5 +1,6 @@
 // The tarn on the valley floor: still water that holds the sky. It mirrors the dome and its clouds, shows its bed
-// where you look down into it, and thins to nothing at its shore.
+// where you look down into it, and thins to nothing at its shore. The same water makes the river plain's river and
+// canals (createRiver): one sheet at the water's level, seen wherever the ground has been cut down below it.
 import * as THREE from 'three';
 import { COMMON } from '../lib/index.js';
 import { HERO, TARN } from './world.js';
@@ -20,8 +21,9 @@ layout(location = 0) out vec4 outC;
 in vec3 vWorld;
 uniform vec3 uZenith, uMid, uHorizon, uGlow;
 uniform samplerCube tClouds;
-uniform vec4 uTarn;   // centre x, z, and its half-lengths across and along the valley
+uniform vec4 uTarn;   // centre x, z, and its half-lengths across and along the valley (0: no tarn, water anywhere)
 uniform vec2 uAlong;  // the way the valley runs
+uniform float uMud;   // 0 a clear tarn; 1 a river heavy with silt
 
 vec3 skyAt(vec3 d) {
   float h = max(d.y, 0.0);
@@ -37,7 +39,7 @@ void main() {
   if (depth <= 0.0) discard;
   // only the tarn: low ground beyond its banks stays dry
   vec2 off = xz - uTarn.xy;
-  if (length(vec2(dot(off, vec2(-uAlong.y, uAlong.x)) / uTarn.z, dot(off, uAlong) / uTarn.w)) > 1.32) discard;
+  if (uTarn.z > 0.0 && length(vec2(dot(off, vec2(-uAlong.y, uAlong.x)) / uTarn.z, dot(off, uAlong) / uTarn.w)) > 1.32) discard;
   vec3 V = normalize(uCamPos - vWorld);
   float dist = distance(uCamPos, vWorld);
   // the wind's small ripples, travelling; calmer in the lee of the bank
@@ -53,10 +55,13 @@ void main() {
   vec3 mirror = mix(skyAt(normalize(R + vec3(0.0, 0.3, 0.0))), uMid * 1.05, 0.5);
   // what stands low on the far side is mirrored too: the bank, the hills
   float shore = 1.0 - smoothstep(0.015, 0.11, R.y + r1.x * 0.03);
-  mirror = mix(mirror, vec3(0.03, 0.115, 0.05) * (uSkyColor + uSunColor * 0.25), shore * 0.9);
+  mirror = mix(mirror, mix(vec3(0.03, 0.115, 0.05), vec3(0.1, 0.11, 0.06), uMud) * (uSkyColor + uSunColor * 0.25), shore * 0.9);
   float fres = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
   float shade = cloudAt(xz);
-  vec3 bed = mix(vec3(0.1, 0.19, 0.11), vec3(0.01, 0.06, 0.065), smoothstep(0.0, 1.5, depth)) * (uSkyColor + uSunColor * 0.3 * shade);
+  vec3 bed = mix(vec3(0.1, 0.19, 0.11), vec3(0.01, 0.06, 0.065), smoothstep(0.0, 1.5, depth));
+  // (silt: a muddy green-brown that the eye does not see through)
+  bed = mix(bed, mix(vec3(0.2, 0.18, 0.1), vec3(0.09, 0.1, 0.06), smoothstep(0.0, 1.0, depth)), uMud);
+  bed *= uSkyColor + uSunColor * 0.3 * shade;
   vec3 col = mix(bed, mirror, clamp(fres * 1.15 + 0.16, 0.0, 1.0));
   // the sun's path on it, in sparks
   float glint = pow(max(dot(R, uSunDir), 0.0), 420.0) * shade;
@@ -74,10 +79,28 @@ export function createTarn(field, sky) {
   const geometry = new THREE.PlaneGeometry(reach * 2, reach * 2, 1, 1);
   geometry.rotateX(-Math.PI / 2);
   const u = sky.uniforms;
-  const uniforms = { ...field.uniforms, uZenith: u.uZenith, uMid: u.uMid, uHorizon: u.uHorizon, uGlow: u.uGlow, tClouds: u.tClouds, uTarn: { value: new THREE.Vector4(TARN.at[0], TARN.at[1], TARN.rx, TARN.rz) }, uAlong: { value: new THREE.Vector2(HERO[0], HERO[1]) } };
+  const uniforms = { ...field.uniforms, uZenith: u.uZenith, uMid: u.uMid, uHorizon: u.uHorizon, uGlow: u.uGlow, tClouds: u.tClouds, uTarn: { value: new THREE.Vector4(TARN.at[0], TARN.at[1], TARN.rx, TARN.rz) }, uAlong: { value: new THREE.Vector2(HERO[0], HERO[1]) }, uMud: { value: 0 } };
   const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: vertex, fragmentShader: fragment, uniforms, transparent: true, depthWrite: false });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(TARN.at[0], TARN.level, TARN.at[1]);
   mesh.renderOrder = 5;
+  return mesh;
+}
+
+/**
+ * The river plain's river and canals: one sheet of water at their level over the whole of the field's ground,
+ * seen only where the ground is below it (the beds cut for them in world.js), silty, and holding the sky.
+ * @param level the water's height, metres; @param extent the side of the square it covers
+ */
+export function createRiver(field, sky, level, extent) {
+  const geometry = new THREE.PlaneGeometry(extent, extent, 1, 1);
+  geometry.rotateX(-Math.PI / 2);
+  const u = sky.uniforms;
+  const uniforms = { ...field.uniforms, uZenith: u.uZenith, uMid: u.uMid, uHorizon: u.uHorizon, uGlow: u.uGlow, tClouds: u.tClouds, uTarn: { value: new THREE.Vector4(0, 0, 0, 0) }, uAlong: { value: new THREE.Vector2(HERO[0], HERO[1]) }, uMud: { value: 1 } };
+  const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: vertex, fragmentShader: fragment, uniforms, transparent: true, depthWrite: false });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(0, level, 0);
+  mesh.renderOrder = 5;
+  mesh.frustumCulled = false;
   return mesh;
 }

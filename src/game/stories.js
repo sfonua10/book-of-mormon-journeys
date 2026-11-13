@@ -69,6 +69,8 @@ export const STORIES = [
     scripture: daniel,
     /** Babylon, in place of Jerusalem (babylon.js), and its own people in place of Jerusalem's. */
     look: furnace.LOOK,
+    /** The river plain of Babylon, in place of the hill country round Jerusalem (world.js). */
+    land: 'plain',
     town: furnace.town,
     end: {
       heading: 'But If Not',

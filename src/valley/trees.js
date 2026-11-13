@@ -4,8 +4,8 @@
 // Their shade is baked into a map the grass reads, with moving spots of light let through it.
 import * as THREE from 'three';
 import { COMMON } from '../lib/index.js';
-import { keepClear } from '../game/places.js';
-import { fromValley, heightAt, pathDistance, riverDistance, TARN, tarnDistance, toValley, TREE } from './world.js';
+import { keepClear, PLAIN, riverMiddle } from '../game/places.js';
+import { fromValley, heightAt, LAND, pathDistance, riverDistance, TARN, tarnDistance, toValley, TREE } from './world.js';
 
 const TAU = Math.PI * 2;
 const V3 = THREE.Vector3;
@@ -228,6 +228,176 @@ function growTree(seed, o) {
   return { wood, leaves, core, crown: o.crown, crownY, height: o.trunk + o.rise };
 }
 
+/**
+ * A palm frond's leaflets, white on black, to repeat along the frond: a rib up the middle and long narrow leaflets
+ * off it to either side, angled towards the tip. (Red is how light a leaflet is painted; green is where there is leaf.)
+ */
+function frondTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, size, size);
+  const random = mulberry(91);
+  g.fillStyle = 'rgb(120,255,0)';
+  g.fillRect(124, 0, 8, size);
+  // (each pair drawn three times, a picture's height apart, so the pattern runs on without a seam)
+  for (let y = 0; y < size; y += 11) {
+    for (const side of [-1, 1]) {
+      const len = 92 + random() * 26;
+      const tone = 140 + Math.floor(random() * 115);
+      const lean = 0.62 + (random() - 0.5) * 0.2;
+      for (const wrap of [-size, 0, size]) {
+        g.save();
+        g.translate(128, y + wrap + (side < 0 ? 5 : 0));
+        g.rotate(side * (Math.PI / 2 - lean));
+        g.fillStyle = `rgb(${tone},255,0)`;
+        g.beginPath();
+        g.moveTo(0, 0);
+        g.quadraticCurveTo(len * 0.45, -4.5, len, 0);
+        g.quadraticCurveTo(len * 0.45, 4.5, 0, 0);
+        g.fill();
+        g.restore();
+      }
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 4;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+}
+
+/**
+ * A date palm, standing at the origin: a tall bare trunk, a little bent, ringed with the bases of old fronds, and at
+ * its top a crown of long fronds, the new ones standing up in the middle and the old arching out and down. Returned
+ * as growTree's are (wood, leaves and a small dark core where the fronds meet), so it is drawn and shaded the same.
+ * @param o.trunk height, o.girth radius, o.fronds how many, o.length of the longest, o.segs pieces along each
+ */
+function growPalm(seed, o) {
+  const random = mulberry(seed);
+  const lean = random() * TAU;
+  const bow = o.trunk * (0.04 + 0.06 * random());
+  const top = new V3(Math.cos(lean) * bow * 1.6, o.trunk, Math.sin(lean) * bow * 1.6);
+  const curve = new THREE.CatmullRomCurve3([new V3(0, -0.6, 0), new V3(Math.cos(lean) * bow * 0.3, o.trunk * 0.4, Math.sin(lean) * bow * 0.3), new V3(Math.cos(lean) * bow, o.trunk * 0.75, Math.sin(lean) * bow), top]);
+
+  // ---- the trunk ----
+  const pos = [];
+  const nor = [];
+  const bark = [];
+  const idx = [];
+  const sides = o.segs > 3 ? 9 : 6;
+  const rows = o.segs > 3 ? 14 : 7;
+  const frames = curve.computeFrenetFrames(rows, false);
+  const along = curve.getLength();
+  for (let j = 0; j <= rows; j++) {
+    const t = j / rows;
+    const p = curve.getPoint(t);
+    for (let i = 0; i <= sides; i++) {
+      const a = (i / sides) * TAU;
+      // (it swells a little at its foot, and at its head where the fronds' bases crowd)
+      const r = o.girth * (1 + 0.4 * Math.exp(-t * 14) + 0.3 * THREE.MathUtils.smoothstep(t, 0.9, 1));
+      const n = frames.normals[j].clone().multiplyScalar(Math.cos(a)).addScaledVector(frames.binormals[j], Math.sin(a));
+      pos.push(p.x + n.x * r, p.y + n.y * r, p.z + n.z * r);
+      nor.push(n.x, n.y, n.z);
+      bark.push(i / sides, t * along);
+    }
+  }
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < sides; i++) {
+      const a = j * (sides + 1) + i;
+      const b = a + sides + 1;
+      idx.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+  }
+  const wood = new THREE.BufferGeometry();
+  wood.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  wood.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  wood.setAttribute('aBark', new THREE.Float32BufferAttribute(bark, 2));
+  wood.setIndex(idx);
+
+  // ---- the fronds ----
+  const lp = [];
+  const luv = [];
+  const lball = [];
+  const lrand = [];
+  const lidx = [];
+  const centre = top.clone().add(new V3(0, 0.3, 0));
+  const upV = new V3(0, 1, 0);
+  for (let k = 0; k < o.fronds; k++) {
+    // the newest few stand up in the middle; the rest arch out, the oldest lowest and most bent
+    const age = k / o.fronds;
+    const a = k * 2.39996 + random() * 0.4;
+    const h = new V3(Math.cos(a), 0, Math.sin(a));
+    const side = new V3().crossVectors(h, upV).normalize();
+    const e0 = THREE.MathUtils.degToRad(age < 0.15 ? 68 + 12 * random() : 52 - 50 * age + 10 * random());
+    const droop = age < 0.15 ? 0.5 : 0.9 + 0.9 * age + 0.3 * random();
+    const len = o.length * (age < 0.15 ? 0.65 : 0.82 + 0.25 * random());
+    const wide = len * (0.2 + 0.05 * random());
+    const tone = random();
+    const phase = random();
+    const twist = (random() - 0.5) * 0.5;
+    let p = top.clone();
+    for (let s = 0; s < o.segs; s++) {
+      const s0 = s / o.segs;
+      const s1 = (s + 1) / o.segs;
+      const th0 = e0 - droop * s0;
+      const th1 = e0 - droop * s1;
+      const t0 = h.clone().multiplyScalar(Math.cos(th0)).addScaledVector(upV, Math.sin(th0));
+      const t1 = h.clone().multiplyScalar(Math.cos(th1)).addScaledVector(upV, Math.sin(th1));
+      const q = p.clone().addScaledVector(t0.clone().add(t1).normalize(), len / o.segs);
+      // (broadest a third of the way out, narrowing to the tip)
+      const w = (x) => wide * (0.25 + 0.75 * Math.sin(Math.PI * Math.min(1, 0.15 + x * 1.1))) * (1 - 0.6 * x * x);
+      const sv = side.clone().applyAxisAngle(t0, twist);
+      const sv1 = side.clone().applyAxisAngle(t1, twist);
+      const first = lp.length / 3;
+      const corners = [
+        [p, sv, -w(s0), 0, s0],
+        [p, sv, w(s0), 1, s0],
+        [q, sv1, w(s1), 1, s1],
+        [q, sv1, -w(s1), 0, s1],
+      ];
+      for (const [c, d, off, uu, ss] of corners) {
+        const at = c.clone().addScaledVector(d, off);
+        lp.push(at.x, at.y, at.z);
+        luv.push(uu, (ss * len) / 1.1);
+        // lit as part of the crown's ball, and a little as the frond's own face
+        const ball = at.clone().sub(centre).normalize().add(upV.clone().multiplyScalar(0.25)).normalize();
+        lball.push(ball.x, ball.y, ball.z);
+        lrand.push(tone, phase, 0.55 + 0.45 * ss, at.y);
+      }
+      lidx.push(first, first + 1, first + 2, first, first + 2, first + 3);
+      p = q;
+    }
+  }
+  const leaves = new THREE.BufferGeometry();
+  leaves.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+  leaves.setAttribute('uv', new THREE.Float32BufferAttribute(luv, 2));
+  leaves.setAttribute('aBall', new THREE.Float32BufferAttribute(lball, 3));
+  leaves.setAttribute('aRand', new THREE.Float32BufferAttribute(lrand, 4));
+  leaves.setIndex(lidx);
+  // (where the fronds meet the trunk, a dark knot of their bases)
+  const ico = new THREE.IcosahedronGeometry(1, 1).attributes.position;
+  const cp = [];
+  const cball = [];
+  const crand = [];
+  for (let i = 0; i < ico.count; i++) {
+    const n = new V3(ico.getX(i), ico.getY(i), ico.getZ(i));
+    cp.push(top.x + n.x * o.girth * 2.6, top.y + 0.1 + n.y * o.girth * 2.2, top.z + n.z * o.girth * 2.6);
+    cball.push(n.x, n.y, n.z);
+    crand.push(0.3, 0.5, 0.35, top.y);
+  }
+  const core = new THREE.BufferGeometry();
+  core.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3));
+  core.setAttribute('aBall', new THREE.Float32BufferAttribute(cball, 3));
+  core.setAttribute('aRand', new THREE.Float32BufferAttribute(crand, 4));
+  return { wood, leaves, core, crown: o.length * 0.85, crownY: o.trunk, height: o.trunk + o.length * 0.4, frond: true };
+}
+
 const leafVertex = /* glsl */ `
 ${COMMON}
 in vec3 aBall;
@@ -281,6 +451,11 @@ void main() {
   vec3 col = mix(vec3(0.04, 0.07, 0.065), vec3(0.11, 0.16, 0.12), smoothstep(0.3, 0.42, tone));
   col = mix(col, vec3(0.25, 0.31, 0.21), smoothstep(0.56, 0.68, tone));
   col = mix(col, vec3(0.5, 0.55, 0.4), smoothstep(0.84, 0.92, tone));
+  // (on the river plain: the grey-green of date palms and tamarisk, paler and yellower where the sun is on it)
+  vec3 pc = mix(vec3(0.05, 0.08, 0.05), vec3(0.14, 0.2, 0.12), smoothstep(0.3, 0.42, tone));
+  pc = mix(pc, vec3(0.3, 0.37, 0.21), smoothstep(0.56, 0.68, tone));
+  pc = mix(pc, vec3(0.56, 0.58, 0.38), smoothstep(0.84, 0.92, tone));
+  col = mix(col, pc, uLand);
   float cloud = cloudAt(vWorld.xz + uSunDir.xz * 30.0);
   vec3 light = uSkyColor * 0.9 + uSunColor * (0.2 + 0.16 * smoothstep(0.5, 0.9, tone)) * mix(0.45, 1.0, clamp((cloud - 0.5) * 2.0, 0.0, 1.0));
   // seen against the sun, leaves glow
@@ -311,6 +486,7 @@ void main() {
   tone = tone * mix(0.5, 1.0, vRand.z) + (n - 0.5) * 0.36 - 0.04;
   vec3 col = mix(vec3(0.04, 0.07, 0.065), vec3(0.1, 0.15, 0.115), smoothstep(0.3, 0.42, tone));
   col = mix(col, vec3(0.22, 0.28, 0.19), smoothstep(0.58, 0.7, tone));
+  col = mix(col, mix(vec3(0.07, 0.06, 0.04), vec3(0.2, 0.16, 0.1), smoothstep(0.4, 0.7, tone)), uLand);
   float cloud = cloudAt(vWorld.xz + uSunDir.xz * 30.0);
   col *= uSkyColor * 0.9 + uSunColor * (0.2 + 0.14 * smoothstep(0.5, 0.9, tone)) * mix(0.45, 1.0, clamp((cloud - 0.5) * 2.0, 0.0, 1.0));
   outC = vec4(applyFog(col, vWorld), 1.0);
@@ -348,9 +524,17 @@ void main() {
   col = mix(col, vec3(0.24, 0.23, 0.2), smoothstep(0.55, 0.75, patchy) * 0.6);
   float moss = smoothstep(0.45, 0.7, patchy * 0.6 + N.y * 0.5 - dot(N, uSunDir) * 0.2 + 0.25) * 0.75;
   col = mix(col, vec3(0.2, 0.2, 0.15), moss * 0.6);
-  // it stands in its own shade: light reaches it in spots
+  // (a palm's trunk: grey-brown, in a lattice of the bases of fronds long since cut)
+  // (rings of stubs, each row set over the gaps of the one below, worn smooth towards the foot)
+  float row = vBark.y * 3.4;
+  float stub = fract(vBark.x * 7.0 + 0.5 * floor(row));
+  float ring = smoothstep(0.0, 0.35, fract(row)) * smoothstep(0.0, 0.25, min(stub, 1.0 - stub) * 2.0);
+  float worn = smoothstep(0.6, 2.4, vBark.y);
+  vec3 palm = mix(vec3(0.2, 0.16, 0.11), vec3(0.36, 0.31, 0.24), mix(0.75, ring, worn)) * (0.85 + 0.3 * stroke);
+  col = mix(col, palm, uLand);
+  // it stands in its own shade: light reaches it in spots (a palm's trunk stands in the sun)
   float spot = smoothstep(0.56, 0.7, texture(tNoise, vec2(vBark.x * 1.7, vBark.y * 0.21) + uTime * vec2(0.011, 0.007)).b);
-  float sun = smoothstep(-0.15, 0.6, dot(N, uSunDir)) * mix(0.1, 1.0, spot);
+  float sun = smoothstep(-0.15, 0.6, dot(N, uSunDir)) * mix(mix(0.1, 1.0, spot), 1.0, uLand * 0.85);
   vec3 c = col * (uSunColor * sun * 0.62 + mix(uBounceColor * 2.0, uSkyColor, N.y * 0.5 + 0.5) * 0.85);
   outC = vec4(applyFog(c, vWorld), 1.0);
 }
@@ -421,26 +605,105 @@ function plant() {
   return trees;
 }
 
+/**
+ * The date palms of the river plain, and its few bushes, added to `trees` as plant() has them: [x, z, kind, scale,
+ * turn]. Near the walk (kinds 1 to 3): lines of them along the river's banks, a grove between the city and the
+ * river, groves out on the plain, rows along the canals. Past it (4 to 6), the same along the river and the canals
+ * as far as the plain is drawn. Then a few low bushes (`bush`, `bush` + 1). All in that order.
+ */
+function plantPalms(trees, bush) {
+  const random = mulberry(612);
+  const { half } = PLAIN.river;
+  const near = [];
+  const far = [];
+  const shrubs = [];
+  const taken = new Set();
+  const cell = (x, z) => `${Math.round(x / 6)},${Math.round(z / 6)}`;
+  /** A palm at (u, v), if the place is free: near or far by how far it is from the middle of the walk. */
+  const palm = (u, v, scale = 0.8 + 0.45 * random()) => {
+    const [x, z] = fromValley(u, v);
+    const r = Math.hypot(x, z);
+    if (r > 1250 || (r > 596 && r < 650)) return;
+    if (tarnDistance(x, z) < 1.0 || pathDistance(x, z) < 3 || keepClear(u, v, 2)) return;
+    const key = cell(x, z);
+    if (taken.has(key)) return;
+    taken.add(key);
+    (r < 600 ? near : far).push([x, z, (r < 600 ? 1 : 4) + Math.floor(random() * 3), scale, random() * TAU]);
+  };
+  // along both banks of the river, on its low bank of earth: a line, with gaps, and a second behind it here and there
+  for (let u = -1200; u < 1300; u += 6 + 5 * random()) {
+    for (const side of [-1, 1]) {
+      if (Math.sin(u / 83 + side * 1.7) > 0.72) continue;
+      const v = riverMiddle(u) + side * (half + 9 + random() * 4);
+      palm(u, v);
+      if (random() < 0.55) palm(u + 3, v + side * (8 + random() * 3));
+    }
+  }
+  /** A grove: palms in loose rows, as they are planted, `n` along and `m` across from (u, v). */
+  const grove = (u, v, n, m, gap = 8, keep = 0.75) => {
+    for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) if (random() < keep) palm(u + i * gap + (random() - 0.5) * 2.5, v + j * gap + (random() - 0.5) * 2.5);
+  };
+  // between the city and the river; on the plain to the west; past the river; round the far side of the city
+  grove(232, 70, 26, 5);
+  grove(-120, 30, 12, 7, 8.5, 0.6);
+  grove(-420, -40, 10, 8, 9, 0.5);
+  grove(420, -150, 9, 6, 9, 0.6);
+  grove(60, -330, 14, 6, 9, 0.55);
+  grove(-300, -330, 16, 7, 9, 0.55);
+  grove(700, -90, 12, 10, 10, 0.6);
+  grove(-760, -120, 14, 10, 10, 0.6);
+  // a row along each canal
+  for (const [[u0, v0], [u1, v1]] of PLAIN.canals) {
+    const len = Math.hypot(u1 - u0, v1 - v0);
+    const [du, dv] = [(u1 - u0) / len, (v1 - v0) / len];
+    for (let t = 0; t < len; t += 9 + 6 * random()) {
+      if (Math.sin(t / 60) > 0.6) continue;
+      palm(u0 + du * t + dv * 7, v0 + dv * t - du * 7);
+    }
+  }
+  // and here and there one alone
+  for (let k = 0; k < 30; k++) {
+    const a = random() * TAU;
+    const d = 120 + 1000 * Math.sqrt(random());
+    palm(Math.cos(a) * d, Math.sin(a) * d);
+  }
+  // bushes: tamarisk and thorn, low, scattered, more of them near the water
+  for (let k = 0; k < 140; k++) {
+    const u = -560 + 1150 * random();
+    const v = -560 + 1120 * random();
+    const [x, z] = fromValley(u, v);
+    if (Math.hypot(x, z) > 590 || tarnDistance(x, z) < 1.0 || pathDistance(x, z) < 2 || keepClear(u, v)) continue;
+    if (tarnDistance(x, z) > 2.2 && random() < 0.55) continue;
+    shrubs.push([x, z, bush + (random() < 0.5 ? 0 : 1), 0.45 + 0.6 * random(), random() * TAU]);
+  }
+  trees.push(...near, ...far, ...shrubs);
+}
+
 /** @param options.cards 0 to 1, the share of leaf sprays drawn */
 export function createTrees(field, { cards = 1 } = {}) {
-  const kinds = [
-    growTree(11, { trunk: 3.6, girth: 0.92, crown: 11.5, rise: 12.5, limbs: 6, clump: 2.7, fill: 26, cards: Math.round(92 * cards), spray: 1.05 }),
-    growTree(23, { trunk: 2.6, girth: 0.42, crown: 5.6, rise: 8.2, limbs: 4, clump: 1.9, fill: 9, cards: Math.round(48 * cards), spray: 1.15 }),
-    growTree(37, { trunk: 3.3, girth: 0.36, crown: 4.6, rise: 9.6, limbs: 4, clump: 1.7, fill: 10, cards: Math.round(48 * cards), spray: 1.1 }),
-    growTree(51, { trunk: 2.2, girth: 0.5, crown: 6.6, rise: 7.2, limbs: 5, clump: 2.1, fill: 8, cards: Math.round(48 * cards), spray: 1.15 }),
-  ];
-  const trees = plant();
+  // (the hill country's trees, or on the river plain date palms: kinds 1 to 3 near the walk, 4 to 6 past it, 7 and 8
+  // bushes, in that order, as the walker's collisions expect; the plain has no great tree, kind 0)
+  const hills = LAND !== 'plain';
+  const kinds = hills
+    ? [
+        growTree(11, { trunk: 3.6, girth: 0.92, crown: 11.5, rise: 12.5, limbs: 6, clump: 2.7, fill: 26, cards: Math.round(92 * cards), spray: 1.05 }),
+        growTree(23, { trunk: 2.6, girth: 0.42, crown: 5.6, rise: 8.2, limbs: 4, clump: 1.9, fill: 9, cards: Math.round(48 * cards), spray: 1.15 }),
+        growTree(37, { trunk: 3.3, girth: 0.36, crown: 4.6, rise: 9.6, limbs: 4, clump: 1.7, fill: 10, cards: Math.round(48 * cards), spray: 1.1 }),
+        growTree(51, { trunk: 2.2, girth: 0.5, crown: 6.6, rise: 7.2, limbs: 5, clump: 2.1, fill: 8, cards: Math.round(48 * cards), spray: 1.15 }),
+      ]
+    : [6, 17, 29, 43].map((seed, k) => growPalm(seed, { trunk: [5, 11, 8.5, 13.5][k], girth: 0.24, fronds: Math.round(36 * cards), length: 4.6, segs: 5 }));
+  const trees = hills ? plant() : [];
   // past the walk: the same trees, drawn with a third of the sprays, each bigger
   for (let k = 1; k <= 3; k++) {
     const seed = [0, 23, 37, 51][k];
     const o = [null, { trunk: 2.6, girth: 0.42, crown: 5.6, rise: 8.2, limbs: 4, clump: 1.9, fill: 9 }, { trunk: 3.3, girth: 0.36, crown: 4.6, rise: 9.6, limbs: 4, clump: 1.7, fill: 10 }, { trunk: 2.2, girth: 0.5, crown: 6.6, rise: 7.2, limbs: 5, clump: 2.1, fill: 8 }][k];
-    kinds.push(growTree(seed, { ...o, cards: 22, spray: 1.85 }));
+    kinds.push(hills ? growTree(seed, { ...o, cards: 22, spray: 1.85 }) : growPalm(seed + 100, { trunk: [0, 11, 8.5, 13.5][k], girth: 0.26, fronds: 12, length: 4.8, segs: 3 }));
   }
   {
     const random = mulberry(808);
     const [dx, dz] = [0.6, 0.8];
     let made = 0;
-    for (let g = 0; g < 34 && made < 330; g++) {
+    for (let g = 0; g < (hills ? 34 : 0) && made < 330; g++) {
       // woods and spinneys out on the plain and up the valley's sides
       const u = -700 + 1900 * random();
       const v = (random() - 0.5) * 2200;
@@ -463,7 +726,7 @@ export function createTrees(field, { cards = 1 } = {}) {
     growTree(71, { trunk: 0.25, girth: 0.07, crown: 1.5, rise: 1.9, limbs: 3, clump: 0.8, fill: 7, cards: Math.round(30 * cards), spray: 0.62 }),
     growTree(83, { trunk: 0.2, girth: 0.06, crown: 2.1, rise: 1.5, limbs: 4, clump: 0.85, fill: 8, cards: Math.round(30 * cards), spray: 0.62 }),
   );
-  {
+  if (hills) {
     const random = mulberry(313);
     const bush = (x, z, scale) => {
       if (pathDistance(x, z) < 2.4 || tarnDistance(x, z) < 0.9 || keepClear(...toValley(x, z))) return;
@@ -538,6 +801,7 @@ export function createTrees(field, { cards = 1 } = {}) {
       for (let i = 0; i < n; i++) bush(Math.cos(a) * r + (random() - 0.5) * 9, Math.sin(a) * r + (random() - 0.5) * 9, 0.5 + 0.9 * random());
     }
   }
+  if (!hills) plantPalms(trees, BUSH);
   const group = new THREE.Group();
   const leafMaterial = new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
@@ -549,13 +813,17 @@ export function createTrees(field, { cards = 1 } = {}) {
   });
   const woodMaterial = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: woodVertex, fragmentShader: woodFragment, uniforms: field.uniforms });
   const coreMaterial = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: leafVertex, fragmentShader: coreFragment, uniforms: { ...field.uniforms, tLeaf: leafMaterial.uniforms.tLeaf }, side: THREE.DoubleSide });
+  // (a palm's fronds: the same paint, cut to a frond's leaflets)
+  const frondMaterial = hills
+    ? null
+    : new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: leafVertex, fragmentShader: leafFragment, uniforms: { ...field.uniforms, tLeaf: { value: frondTexture() } }, side: THREE.DoubleSide, alphaToCoverage: true });
   const matrix = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new V3(0, 1, 0);
   kinds.forEach((kind, k) => {
     const mine = trees.filter((t) => t[2] === k);
     if (!mine.length) return;
-    const leaves = new THREE.InstancedMesh(kind.leaves, leafMaterial, mine.length);
+    const leaves = new THREE.InstancedMesh(kind.leaves, kind.frond ? frondMaterial : leafMaterial, mine.length);
     const wood = new THREE.InstancedMesh(kind.wood, woodMaterial, mine.length);
     const core = new THREE.InstancedMesh(kind.core, coreMaterial, mine.length);
     mine.forEach(([x, z, , scale, turn], i) => {

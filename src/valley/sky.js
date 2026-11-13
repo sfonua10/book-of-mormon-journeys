@@ -87,6 +87,84 @@ const KEYS = [
   },
 ];
 
+// The river plain of Babylon (the journeys told there): the same hours under a paler, hotter sky, the air thick with
+// dust, so that the level land goes off into it with no line where it ends and the sky's foot is the colour of the
+// air. The sun is a little dimmed by it and warmer, and the light thrown up off the bare ground is stronger.
+const DUST_KEYS = [
+  {
+    e: 2,
+    sun: [2.3, 1.0, 0.42],
+    amb: [0.26, 0.24, 0.36],
+    bounce: [0.14, 0.09, 0.05],
+    zenith: [0.05, 0.1, 0.3],
+    mid: [0.42, 0.38, 0.48],
+    horizon: [1.05, 0.62, 0.32],
+    glow: [2.2, 1.0, 0.4],
+    fog: [0.78, 0.52, 0.38],
+    fogSun: [1.9, 0.95, 0.42],
+    haze: 0.0006,
+    cloudLit: [1.6, 0.8, 0.45],
+    cloudMid: [0.85, 0.48, 0.42],
+    cloudShade: [0.36, 0.28, 0.4],
+    cloudUnder: [0.22, 0.18, 0.3],
+    exposure: 1.1,
+  },
+  {
+    e: 11,
+    sun: [2.8, 2.0, 1.05],
+    amb: [0.36, 0.38, 0.52],
+    bounce: [0.2, 0.15, 0.08],
+    zenith: [0.06, 0.17, 0.42],
+    mid: [0.36, 0.46, 0.6],
+    horizon: [0.95, 0.8, 0.6],
+    glow: [1.6, 1.0, 0.45],
+    fog: [0.82, 0.7, 0.56],
+    fogSun: [1.6, 1.1, 0.62],
+    haze: 0.00055,
+    cloudLit: [1.5, 1.15, 0.78],
+    cloudMid: [0.86, 0.7, 0.6],
+    cloudShade: [0.42, 0.4, 0.5],
+    cloudUnder: [0.3, 0.28, 0.4],
+    exposure: 1,
+  },
+  {
+    e: 27,
+    sun: [2.75, 2.35, 1.75],
+    amb: [0.36, 0.44, 0.62],
+    bounce: [0.2, 0.17, 0.1],
+    zenith: [0.07, 0.25, 0.56],
+    mid: [0.3, 0.48, 0.68],
+    horizon: [0.84, 0.8, 0.7],
+    glow: [0.9, 0.78, 0.55],
+    fog: [0.8, 0.76, 0.66],
+    fogSun: [1.25, 1.08, 0.82],
+    haze: 0.0005,
+    cloudLit: [1.28, 1.22, 1.1],
+    cloudMid: [0.72, 0.76, 0.82],
+    cloudShade: [0.46, 0.54, 0.68],
+    cloudUnder: [0.38, 0.46, 0.6],
+    exposure: 1,
+  },
+  {
+    e: 50,
+    sun: [2.7, 2.5, 2.1],
+    amb: [0.36, 0.46, 0.66],
+    bounce: [0.2, 0.18, 0.11],
+    zenith: [0.065, 0.25, 0.58],
+    mid: [0.28, 0.48, 0.7],
+    horizon: [0.82, 0.8, 0.74],
+    glow: [0.7, 0.65, 0.5],
+    fog: [0.78, 0.76, 0.7],
+    fogSun: [1.05, 1.0, 0.86],
+    haze: 0.00048,
+    cloudLit: [1.28, 1.22, 1.1],
+    cloudMid: [0.72, 0.76, 0.82],
+    cloudShade: [0.46, 0.54, 0.68],
+    cloudUnder: [0.38, 0.46, 0.6],
+    exposure: 1,
+  },
+];
+
 // Night, as a painter does it for a film: not black but a deep blue world under a moon, the walls pale with its
 // light, the shadows ink-blue, the windows warm. (The moon takes the sun's place in every shader.)
 const NIGHT = {
@@ -121,17 +199,18 @@ function moonAt(out) {
   return NIGHT.e;
 }
 
-function blend(e) {
-  let a = KEYS[0];
-  let b = KEYS[KEYS.length - 1];
-  for (let i = 0; i < KEYS.length - 1; i++) {
-    if (e >= KEYS[i].e && e <= KEYS[i + 1].e) {
-      a = KEYS[i];
-      b = KEYS[i + 1];
+/** The light at a height of the sun, mixed from the two keys either side of it (`keys`: the land's, KEYS by default). */
+function blend(e, keys = KEYS) {
+  let a = keys[0];
+  let b = keys[keys.length - 1];
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (e >= keys[i].e && e <= keys[i + 1].e) {
+      a = keys[i];
+      b = keys[i + 1];
       break;
     }
   }
-  if (e <= KEYS[0].e) b = a;
+  if (e <= keys[0].e) b = a;
   if (e >= b.e) a = b;
   const t = a === b ? 0 : (e - a.e) / (b.e - a.e);
   const out = {};
@@ -179,6 +258,7 @@ uniform sampler2D tBack0, tBack1, tBack2;
 uniform vec3 uBankLit, uBankShade;
 uniform vec2 uBackdropEl;
 uniform float uNight;
+uniform float uDust;   // 1 where the sky's foot is lost in dust (the river plain), 0 where it is clear
 
 void main() {
   vec3 d = normalize(vDir);
@@ -200,6 +280,8 @@ void main() {
   // towards the sun a cloud's edge is lit through
   c.rgb += uGlow * pow(sd, 40.0) * 0.5 * c.a * (1.0 - c.a) * 4.0;
   col = col * (1.0 - c.a) + c.rgb;
+  // (on the plain the lowest of the sky is the dust the land goes off into: the same colour, so there is no edge)
+  col = mix(col, mix(uFogColor, uFogSunColor, pow(sd, 6.0)), uDust * (1.0 - smoothstep(0.0, 0.1, d.y)));
   // the far country stands in front of the clouds, mixed from its paint with this hour's light
   float v = (asin(clamp(d.y, -1.0, 1.0)) - uBackdropEl.x) / (uBackdropEl.y - uBackdropEl.x);
   float done = 0.0;
@@ -232,6 +314,16 @@ void main() {
 }
 `;
 
+/** No far country: a backdrop with nothing painted on it, so the sky shows to its foot. */
+function flatBackdrop() {
+  const none = () => {
+    const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
+    t.needsUpdate = true;
+    return t;
+  };
+  return { textures: [none(), none(), none()], el: [THREE.MathUtils.degToRad(-2.6), THREE.MathUtils.degToRad(21.4)], paint() {}, compile: () => Promise.resolve() };
+}
+
 /** @param options.cloudSize, options.cloudSteps, options.liveClouds see clouds.js; options.backdropWidth backdrop.js */
 const colour = () => new THREE.Color();
 
@@ -239,20 +331,24 @@ const colour = () => new THREE.Color();
  * The sky's two pictures, the clouds and the far mountains, which need nothing from the land: make them first and
  * the graphics card can be painting them while the land is worked out. `light(hour)` paints the clouds for an hour.
  */
-export function createSkyParts(renderer, { cloudSize = 1024, cloudSteps = 110, liveClouds = true, backdropWidth = 8192 } = {}) {
-  const clouds = createClouds(renderer, HERO, { size: cloudSize, steps: cloudSteps, live: liveClouds });
+export function createSkyParts(renderer, { cloudSize = 1024, cloudSteps = 110, liveClouds = true, backdropWidth = 8192, land = 'hills' } = {}) {
+  const clouds = createClouds(renderer, HERO, { size: cloudSize, steps: cloudSteps, live: liveClouds, layout: land });
   const afternoon = new THREE.Vector3();
   sunAt(16, afternoon);
-  const backdrop = createBackdrop(renderer, HERO, [afternoon.x, afternoon.z], { width: backdropWidth, ground: backdropWidth > 4096 ? 4096 : 2048 });
+  // (the river plain has no mountains: nothing is painted, and the sky's foot is the dust's)
+  const backdrop = land === 'plain' ? flatBackdrop() : createBackdrop(renderer, HERO, [afternoon.x, afternoon.z], { width: backdropWidth, ground: backdropWidth > 4096 ? 4096 : 2048 });
+  const keys = land === 'plain' ? DUST_KEYS : KEYS;
   const sunDir = new THREE.Vector3();
   const c = { fog: colour(), lit: colour(), mid: colour(), shade: colour(), under: colour() };
   const parts = {
     clouds,
     backdrop,
+    land,
+    keys,
     /** The hour the clouds were last painted whole for, so the same hour isn't painted twice. */
     drawn: Number.NaN,
     light(hour) {
-      const k = blend(sunAt(hour, sunDir));
+      const k = blend(sunAt(hour, sunDir), keys);
       clouds.setLight({ sunDir, lit: c.lit.setRGB(...k.cloudLit), mid: c.mid.setRGB(...k.cloudMid), shade: c.shade.setRGB(...k.cloudShade), under: c.under.setRGB(...k.cloudUnder), haze: c.fog.setRGB(...k.fog) });
       clouds.drawAll();
       parts.drawn = hour;
@@ -279,6 +375,7 @@ export function createSky(renderer, field, { parts = null, ...options } = {}) {
     uBankLit: { value: new THREE.Color() },
     uBankShade: { value: new THREE.Color() },
     uNight: { value: 0 },
+    uDust: { value: parts.land === 'plain' ? 1 : 0 },
   };
   const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: vertex, fragmentShader: fragment, uniforms, side: THREE.BackSide, depthWrite: false, depthTest: true });
   const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 4), material);
@@ -308,7 +405,7 @@ export function createSky(renderer, field, { parts = null, ...options } = {}) {
       uniforms.uNight.value = sky.night;
       const e = sky.night ? moonAt(sunDir) : sunAt(hour, sunDir);
       sky.elevation = e;
-      const k = sky.night ? NIGHT : blend(e);
+      const k = sky.night ? NIGHT : blend(e, parts.keys ?? KEYS);
       field.setLight({
         sunDir,
         sunColor: c.sun.setRGB(...k.sun),

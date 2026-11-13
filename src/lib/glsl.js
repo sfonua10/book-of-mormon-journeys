@@ -43,6 +43,7 @@ uniform float uFloorInv;
 uniform float uCloudShade;   // how dark a cloud's shadow is, 0 for none
 uniform vec4 uWalker;        // someone walking in the open: x, z, how dark their shadow, how long (0 for nobody)
 uniform vec4 uLamp;          // a flame carried through the field: where it is, how bright (0 for none)
+uniform float uLand;         // 0 the hill country round Jerusalem; 1 the river plain of Babylon (its colours)
 
 // The carried flame's light at p, in the same measure as tGlow's.
 float lampAt(vec3 p) {
@@ -201,7 +202,17 @@ float slopeSun(float rel) {
 vec3 meadowGreen(float tone) {
   // (straw and sage, as these hills are painted: a deep olive in the shade, tawny in the light, pale gold at the top)
   vec3 c = mix(vec3(0.15, 0.14, 0.07), vec3(0.4, 0.33, 0.15), smoothstep(0.2, 0.5, tone));
-  return mix(c, vec3(0.64, 0.52, 0.27), smoothstep(0.56, 0.9, tone));
+  c = mix(c, vec3(0.64, 0.52, 0.27), smoothstep(0.56, 0.9, tone));
+  // (the river plain: thin grass burnt pale over dusty silt, khaki in the shade, the colour of the dust in the light)
+  vec3 d = mix(vec3(0.2, 0.18, 0.11), vec3(0.42, 0.36, 0.23), smoothstep(0.2, 0.5, tone));
+  d = mix(d, vec3(0.6, 0.52, 0.35), smoothstep(0.56, 0.9, tone));
+  return mix(c, d, uLand);
+}
+
+// Barley in an irrigated field, and the rank green along a canal: the plain's own green, by the same tone.
+vec3 barleyGreen(float tone) {
+  vec3 c = mix(vec3(0.06, 0.085, 0.035), vec3(0.17, 0.22, 0.09), smoothstep(0.22, 0.52, tone));
+  return mix(c, vec3(0.36, 0.4, 0.21), smoothstep(0.6, 0.92, tone));
 }
 
 // The light on it at this hour. shade is how open the place is to the sun (cloudAt's measure).

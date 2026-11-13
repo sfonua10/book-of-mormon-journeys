@@ -49,7 +49,10 @@ void main() {
   float bare = 1.0 - smoothstep(0.12, 0.5, m.g + (texture(tNoise, vWorld.xz / 2.3).r - 0.5) * 0.2);
   // (bare ground here is the hills' own: a warm grey-ochre earth, flecked with pale limestone)
   float chalk = smoothstep(0.6, 0.72, texture(tNoise, vWorld.xz / 0.45 + 0.4).g) * 0.45;
-  vec3 albedo = mix(soil * vec3(1.15, 1.0, 0.82), mix(vec3(0.3, 0.25, 0.17), vec3(0.44, 0.4, 0.33), chalk) * (0.85 + 0.3 * texture(tStrokes, vWorld.xz / 9.0).r), bare);
+  vec3 earth = mix(vec3(0.3, 0.25, 0.17), vec3(0.44, 0.4, 0.33), chalk);
+  // (on the plain it is silt: a pale dusty brown, a little lighter where it has dried, no stone in it)
+  earth = mix(earth, mix(vec3(0.31, 0.27, 0.2), vec3(0.37, 0.33, 0.26), chalk * 0.5), uLand);
+  vec3 albedo = mix(soil * vec3(1.15, 1.0, 0.82), earth * (0.85 + 0.3 * texture(tStrokes, vWorld.xz / 9.0).r), bare);
   vec3 nt = mix(texture(tSoilN, u1).xyz, texture(tDirtN, u1 * 0.8).xyz, bare) * 2.0 - 1.0;
   float detail = 1.0 - smoothstep(12.0, 40.0, dist);
   vec3 N = normalize(vNormal + vec3(nt.x, 0.0, nt.y) * 0.2 * detail);
@@ -62,6 +65,8 @@ void main() {
   float under = texture(tNoise, vWorld.xz / 0.37).r;
   float low = texture(tNoise, vWorld.xz / 1.1 + 0.6).b;
   vec3 litter = mix(vec3(0.09, 0.075, 0.04), vec3(0.06, 0.06, 0.04), smoothstep(0.4, 0.62, low)) * (0.7 + 0.6 * under);
+  // (under the plain's thin grass, dust and dead stems: much the colour of the earth)
+  litter = mix(litter, earth * (0.62 + 0.3 * under), uLand * 0.75);
   albedo = mix(albedo, litter, m.g * (1.0 - bare));
   // mown, it is a mat of stubble and clippings
   albedo = mix(albedo, mix(vec3(0.075, 0.105, 0.028), vec3(0.2, 0.17, 0.07), smoothstep(0.3, 0.7, m.r)) * (0.7 + 0.6 * texture(tNoise, vWorld.xz / 0.7).b), mown * 0.82);
@@ -86,7 +91,8 @@ void main() {
   c += fireRamp(0.55) * fr.r * 0.5;
 
   // beyond the last blades the ground is the grass
-  float farK = max(m.g, 0.88 * smoothstep(50.0, 200.0, dist)) * (1.0 - charred);
+  // (on the river plain, bare silt is bare however far off it is)
+  float farK = max(m.g, 0.88 * smoothstep(50.0, 200.0, dist) * mix(1.0, smoothstep(0.08, 0.45, m.g), uLand)) * (1.0 - charred);
   if (farK > 0.0) {
     float gust = gustAt(vWorld.xz);
     float U = uWind.z;
@@ -94,6 +100,7 @@ void main() {
     float rel = slopeRel(landNormal(vWorld.xz));
     vec3 g = meadowGreen(0.6 + 0.1 * gust * min(U / 6.0, 1.0) + (rel - 0.5) * mix(0.6, 0.4, smoothstep(150.0, 450.0, dist))) * mix(vec3(1.0), meadowTint(vWorld.xz), 0.5 * (1.0 - smoothstep(40.0, 110.0, dist)));
     g = mix(g, vec3(0.6, 0.5, 0.27), dry * 0.45);
+    g = mix(g, barleyGreen(0.5 + (rel - 0.5) * 0.5), uLand * smoothstep(0.15, 0.45, m.b) * (1.0 - dry) * 0.85);
     // seen from off, a meadow is not one green: darker tufts stand in it, and where flowers grow it is dusted
     // with their colour
     float tuft = texture(tNoise, vWorld.xz / 3.1).g * 0.6 + texture(tNoise, vWorld.xz / 0.83 + 0.2).r * 0.4;

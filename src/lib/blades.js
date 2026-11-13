@@ -171,6 +171,8 @@ void main() {
   tone -= 0.2 * (1.0 - smoothstep(1.5, 9.0, dist));
   col = meadowGreen(tone) * mix(vec3(1.0), meadowTint(xz), 0.5);
   col = mix(col, vec3(0.6, 0.5, 0.27), dry * 0.45);
+  // (on the plain, where it is watered: barley, green)
+  col = mix(col, barleyGreen(tone) * mix(vec3(1.0), meadowTint(xz), 0.4), uLand * smoothstep(0.15, 0.45, m.b) * (1.0 - dry));
   if (stalk) col = mix(col, mix(vec3(0.46, 0.52, 0.18), vec3(0.4, 0.46, 0.2), step(0.72, cl.g)), smoothstep(0.75, 0.82, s));
   // far off, a few tufts carry the colour of the flowers among them
   if (uTops > 0.35 && q.w < m.a * 0.1) col = mix(col, mix(vec3(0.75, 0.72, 0.6), vec3(0.7, 0.5, 0.05), step(0.5, q.z)), smoothstep(0.4, 1.0, s));

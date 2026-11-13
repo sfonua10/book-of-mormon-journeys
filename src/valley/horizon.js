@@ -4,7 +4,7 @@
 // same way, as the ground it meets; at its outer edge it is lost in the same haze as the backdrop.
 import * as THREE from 'three';
 import { COMMON, LEAF_LIGHT } from '../lib/index.js';
-import { fieldsAt, forestAt, heightAt, HERO } from './world.js';
+import { fieldsAt, forestAt, heightAt, HERO, LAND, tarnDistance } from './world.js';
 
 /** How far the plain reaches, metres. The backdrop begins a little inside this. */
 export const REACH = 6200;
@@ -92,11 +92,15 @@ void main() {
   far = mix(far, vec3(0.7, 0.64, 0.52) * (uSunColor * 0.35 * cloud + uSkyColor * 0.5), water * 0.7);
 
   vec3 outCol = mix(near, far, smoothstep(650.0, 1400.0, dist));
+  // (on the river plain the river is water, and so are the canals: the map's blue says where)
+  float wet = uLand * smoothstep(0.3, 0.7, far4.b + (e.a - 0.5) * 0.3);
+  vec3 sheen = mix(uFogColor * 1.02, uSkyColor * 1.3, smoothstep(0.0, 0.4, R.y)) + uSunColor * pow(max(dot(R, uSunDir), 0.0), 90.0) * 0.5;
+  outCol = mix(outCol, sheen, wet);
   outC = vec4(applyFog(outCol, vWorld), mix(1.0, 0.4, smoothstep(520.0, 700.0, dist)));
 }
 `;
 
-/** The far land's map, baked once: forest in red, fields in green, over the square the plain covers. */
+/** The far land's map, baked once: forest in red, fields in green, water in blue, over the square the plain covers. */
 function farMap(size = 1024) {
   const data = new Uint8Array(size * size * 4);
   const side = REACH * 2;
@@ -107,6 +111,8 @@ function farMap(size = 1024) {
       const k = (i + j * size) * 4;
       data[k] = 255 * forestAt(x, z);
       data[k + 1] = 255 * fieldsAt(x, z);
+      // (the river plain's river and canals; the hill country's river is drawn from its line, above)
+      if (LAND === 'plain') data[k + 2] = 255 * (1 - Math.min(1, Math.max(0, (tarnDistance(x, z) - 0.7) / 0.3)));
       data[k + 3] = 255;
     }
   }

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { COMMON } from '../lib/index.js';
 import { keepClear, ROCK, ROCK_STONES } from '../game/places.js';
-import { fromValley, heightAt, pathDistance, tarnDistance, toValley } from './world.js';
+import { fromValley, heightAt, LAND, pathDistance, tarnDistance, toValley } from './world.js';
 
 const TAU = Math.PI * 2;
 
@@ -147,7 +147,9 @@ export function createStones(field) {
     [8, -22], [74, -8], [108, -34], [146, 22], [190, -60], [236, 6], [282, 50], [372, 20], [420, 96], [30, 40],
   ];
   const stones = [];
-  for (const [u, v] of groups) {
+  // (the river plain is silt: not a stone on it, and no rock to hide in)
+  const hills = LAND !== 'plain';
+  for (const [u, v] of hills ? groups : []) {
     const n = 3 + Math.floor(random() * 7);
     const spread = 4 + random() * 7;
     for (let i = 0; i < n; i++) {
@@ -161,7 +163,7 @@ export function createStones(field) {
     }
   }
   // the rock the brothers hide in: great boulders round a hollow
-  for (const [du, dv, size, tall] of ROCK_STONES) {
+  for (const [du, dv, size, tall] of hills ? ROCK_STONES : []) {
     const [x, z] = fromValley(ROCK[0] + du, ROCK[1] + dv);
     stones.push([x, z, size, random() * TAU, Math.floor(random() * 3), tall, (random() - 0.5) * 0.2]);
   }

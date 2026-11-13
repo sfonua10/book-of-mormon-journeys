@@ -3,9 +3,11 @@
 // graphics card paints the sky and the mountains meanwhile. main.js does them itself if a worker can't be had.
 import { bakeRows } from '../lib/bake.js';
 import { paintFloor } from './floor.js';
-import { heightAt, paint } from './world.js';
+import { heightAt, paint, setLand } from './world.js';
 
 self.onmessage = ({ data }) => {
+  // (the land the page is laid out on: this thread has its own copy of world.js, and must be told)
+  setLand(data.land ?? 'hills');
   if (data.job === 'ground') {
     const { extent, extentRes, centre } = data;
     const heights = new Float32Array(extentRes * extentRes);
