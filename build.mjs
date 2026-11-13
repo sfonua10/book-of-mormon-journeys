@@ -19,6 +19,14 @@ const audio = path.join(dist, 'audio');
 fs.mkdirSync(audio, { recursive: true });
 const sounds = fs.readdirSync(audio).filter((f) => f.endsWith('.ogg')).map((f) => f.slice(0, -4)).sort();
 fs.writeFileSync(path.join(audio, 'manifest.json'), `${JSON.stringify(sounds)}\n`);
+// The readings of the scripture (tools/narrate.mjs): their list is always there, empty where none has been made,
+// so the game asks for it and is never told there is no such file.
+const readings = path.join(audio, 'narration', 'manifest.json');
+if (!fs.existsSync(readings)) {
+  fs.mkdirSync(path.dirname(readings), { recursive: true });
+  fs.writeFileSync(readings, '{}\n');
+}
+console.log(`readings: ${Object.keys(JSON.parse(fs.readFileSync(readings, 'utf8'))).length}`);
 console.log(`sounds: ${sounds.join(', ') || 'none'}`);
 
 let bytes = 0;

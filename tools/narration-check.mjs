@@ -2,7 +2,7 @@
 // card with a recording goes on by itself when it has been read, a press still goes on at once, and with the
 // reading off the card waits.   CHROME=... node tools/narration-check.mjs   (after npm run build; needs ffmpeg, say)
 import { execFileSync } from 'node:child_process';
-import { createReadStream, existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,8 +11,9 @@ import { chromium } from 'playwright-core';
 const here = resolve(fileURLToPath(import.meta.url), '..', '..');
 const root = resolve(here, 'dist');
 const dir = join(root, 'audio/narration');
-const had = existsSync(join(dir, 'manifest.json'));
-if (had) {
+const manifest = join(dir, 'manifest.json');
+const kept = existsSync(manifest) ? readFileSync(manifest, 'utf8') : null;
+if (kept && kept.trim() !== '{}') {
   console.log('dist has real recordings: this check is for a build without them');
   process.exit(0);
 }
@@ -20,7 +21,7 @@ mkdirSync(dir, { recursive: true });
 execFileSync('say', ['-o', join(dir, 'x.aiff'), 'I will go and do.']);
 execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', join(dir, 'x.aiff'), '-ac', '1', '-b:a', '64k', join(dir, '1-nephi-3-7.mp3')]);
 rmSync(join(dir, 'x.aiff'));
-writeFileSync(join(dir, 'manifest.json'), '{"1-nephi-3-7":"test"}');
+writeFileSync(manifest, '{"1-nephi-3-7":"test"}');
 
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg', '.glb': 'model/gltf-binary' };
 const server = createServer((req, res) => {
@@ -101,7 +102,8 @@ try {
   await page.screenshot({ path: join(here, 'shots', 'touch', '6-voice.png') });
   if (problems.length) fails.push(...problems), console.log(problems.join('\n'));
 } finally {
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(join(dir, '1-nephi-3-7.mp3'), { force: true });
+  writeFileSync(manifest, kept ?? '{}\n');
   await browser.close();
   server.close();
 }
