@@ -324,6 +324,12 @@ export function createCast(field, base, world) {
     if (npc.holdK > 0 && npc.held && !npc.lying) holdArms(npc.man.bones, o, npc.yaw, npc.held, npc.holdK);
     // (the cloth of a cloak is worked out only for those who wear one)
     if (!npc.lying && npc.w.outfit.cloak) npc.w.update(Math.max(dt, 1e-3), world.air, world.heightAt);
+    // a staff stands upright on the ground where his right hand is, leaning a little out from him
+    if (npc.w.staff.visible) {
+      npc.man.bones.hand_r.getWorldPosition(target);
+      npc.w.staff.position.set(target.x, y + (npc.lift ?? 0), target.z);
+      npc.w.staff.rotation.set(0, 0, 0);
+    }
   }
 
   return {

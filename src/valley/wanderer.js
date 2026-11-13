@@ -29,7 +29,7 @@ uniform float uGlow;   // 0, or towards 1 for one who shines (the angel)
 uniform float uPart;   // 0 a part as it is; 1 the shirt and trousers, 2 his bare skin, 3 his shoes
 uniform vec4 uCut;     // bare (0; 1 one shoulder and both arms; 2 to the waist), the hem's height (0: a long robe), how high the sandals' laces go (0: none), the belt (0; 1 wide and banded; 2 narrow)
 uniform float uCuffs;  // 0; 1 leather guards on the forearms; 2 gold at the wrist and the upper arm; 3 a band at the wrist
-uniform float uEdge;   // a hanging cloth's hem: 0 a band of trim; 1 raw and uneven; 2 a border of scales; 3 fur
+uniform float uEdge;   // a hanging cloth's hem: 0 a band of trim; 1 raw and uneven; 2 a border of scales; 3 fur; 4 fringed
 uniform vec2 uRobe;    // long sleeves to the wrist (0 or 1), an open V at the neck (0 or 1)
 uniform float uArmour; // 0; 1 a coat of bronze scales over the body, from the belt to the shoulders
 uniform vec3 uPal[12]; // [in the light, in the shade] of: skin, the belt, the belt's bands, leather, gold, the robe
@@ -135,6 +135,17 @@ void main() {
       float x = vCloth.x * mix(38.0, 96.0, fur);
       float tear = mix(0.07, 0.17, fur) * (0.55 + 0.45 * sin(x * 1.7) * sin(x * 0.63 + 1.3));
       if (vCloth.y > 1.0 - tear) discard;
+    } else if (uEdge > 3.5) {
+      // a fringe: a band of trim, and below it threads hanging loose (as Babylon's robes are carved)
+      if (vCloth.y > 0.955) {
+        float thread = fract(vCloth.x * 150.0);
+        if (thread > 0.6) discard;
+        litPaint = uTrim;
+        shadePaint = uTrim * vec3(0.62, 0.56, 0.66);
+      } else if (!back && vCloth.y > 0.9) {
+        litPaint = uTrim * 0.92;
+        shadePaint = uTrim * vec3(0.6, 0.55, 0.64);
+      }
     } else if (vCloth.y > 0.82) {
       // a border of small scales, row on row
       vec2 q = vec2(vCloth.x * 70.0, (vCloth.y - 0.82) / 0.18 * 3.0);
@@ -202,11 +213,15 @@ void main() {
 `;
 
 // How he is dressed, beyond the colours:
-//   head: 'cloth' (a head cloth falling to the neck), 'band' (a thin band round the brow) or 'none'
+//   head: 'cloth' (a head cloth falling to the neck), 'band' (a thin band round the brow) or 'none'; in Babylon,
+//     'cap' (a round cap of felt), 'turban' (cloth wound round the head), 'crown' (the king's: tall, rounded at the
+//     top, its ribbons hanging behind) or 'helmet' (pointed, of bronze)
+//   hair: 'long' for hair to the shoulders, gathered behind
+//   beard: 'long' for a long beard, squared at its end (with `beard` given to createWanderer)
 //   cloak: a mantle of cloth over the shoulders and back
 //   hem: where his tunic or robe ends (its skirt hangs from the belt; below it his legs are bare); 0: the figure's
 //     own shirt and trousers, painted
-//   edge: the tunic's hem: 0 plain, 1 raw and uneven, 2 a border of scales, 3 fur
+//   edge: the tunic's hem: 0 plain, 1 raw and uneven, 2 a border of scales, 3 fur, 4 fringed
 //   bare: 0; 1 one shoulder and both arms bare; 2 bare to the waist
 //   belt: 0; 1 a wide belt with bands across it; 2 a narrow one
 //   cuffs: 0; 1 leather guards on the forearms; 2 gold bands at the wrist and the upper arm; 3 a band at the wrist
@@ -215,8 +230,9 @@ void main() {
 //   neck: 'v' for an open V at the neck
 //   blade: a blade in its sheath at the belt, this long (0: none; about 0.2 a dagger, 0.75 a sword)
 //   armour: a coat of bronze scales over the body (the gold's paint, deepened)
+//   staff: a staff as tall as he is, in his right hand (npc.js keeps it upright there)
 /** A long robe and a mantle, a head cloth: Laban, his servants, Zoram, the angel. */
-export const ROBE = { head: 'cloth', cloak: true, hem: 0.13, edge: 0, bare: 0, belt: 0, cuffs: 0, lace: 0, blade: 0, sleeves: false, neck: '', armour: false };
+export const ROBE = { head: 'cloth', cloak: true, hem: 0.13, edge: 0, bare: 0, belt: 0, cuffs: 0, lace: 0, blade: 0, sleeves: false, neck: '', armour: false, hair: '', beard: '' };
 
 // What he wears: [in the light, in the shade], as paint. The shade is a colour of its own, cooler and deeper, not
 // the light one made darker.
@@ -381,13 +397,41 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
   band.position.set(0, -0.03, 0.01);
   band.rotation.x = 0.06;
   hat.add(band);
+  let beardMesh = null;
   if (beard) {
     // a full beard: a rounded mass under the jaw, the hair's colour
     const b = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), paint('BEARD'));
     b.scale.set(1.05, 1.2, 0.8);
     b.position.set(0, -0.2, 0.075);
     hat.add(b);
+    beardMesh = b;
   }
+  // Babylon's: a round cap; cloth wound into a turban; the king's tall crown, its two ribbons hanging behind; a
+  // pointed helmet; hair to the shoulders, gathered behind
+  const lathe = (pts, sides = 22) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), sides);
+  const cap = new THREE.Mesh(lathe([[0, 0.15], [0.06, 0.145], [0.098, 0.12], [0.116, 0.075], [0.122, 0.025], [0.124, 0.005]]), paint('HAT'));
+  hat.add(cap);
+  const turban = new THREE.Mesh(lathe([[0, 0.165], [0.07, 0.16], [0.112, 0.14], [0.135, 0.105], [0.142, 0.065], [0.138, 0.03], [0.126, 0.0]]), paint('HAT'));
+  hat.add(turban);
+  const crown = new THREE.Group();
+  const crownPaint = paint('HAT');
+  crown.add(new THREE.Mesh(lathe([[0.123, -0.005], [0.126, 0.06], [0.12, 0.17], [0.108, 0.27], [0.088, 0.33], [0.05, 0.36], [0, 0.365]]), crownPaint));
+  const crownBand = new THREE.Mesh(new THREE.CylinderGeometry(0.127, 0.128, 0.03, 26, 1, true), paint('HEADBAND'));
+  crownBand.position.y = 0.035;
+  crown.add(crownBand);
+  for (const side of [-1, 1]) {
+    const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.26, 0.008).translate(0, -0.13, 0), crownBand.material);
+    ribbon.position.set(side * 0.028, 0.04, -0.125);
+    ribbon.rotation.set(0.22, 0, side * 0.08);
+    crown.add(ribbon);
+  }
+  hat.add(crown);
+  const helmet = new THREE.Mesh(lathe([[0.128, -0.01], [0.13, 0.04], [0.108, 0.13], [0.07, 0.21], [0.025, 0.27], [0, 0.285]]), paint('GOLD'));
+  hat.add(helmet);
+  const longHair = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), paint('HAIR'));
+  longHair.scale.set(1.12, 1.5, 0.62);
+  longHair.position.set(0, -0.095, -0.075);
+  hat.add(longHair);
   hat.position.set(0, 1.805, -0.012);
   hat.rotation.x = -0.1;
   man.object.add(hat);
@@ -455,6 +499,14 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
 
   const group = new THREE.Group();
   group.add(man.object, cloakMesh);
+  // a staff, with a knob at its head: not on his bones but stood upright where his hand is, each frame
+  const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.021, 2.05, 8).translate(0, 1.025, 0), paint('BELT'));
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), paint('GOLD'));
+  knob.position.y = 2.06;
+  staff.add(knob);
+  staff.visible = false;
+  staff.frustumCulled = false;
+  group.add(staff);
 
   /** Sets every paint from the palette, and what he wears from its OUTFIT. */
   function wear() {
@@ -478,6 +530,17 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
     for (const sleeve of sleeves) sleeve.visible = !!o.sleeves;
     cloth.visible = o.head === 'cloth';
     band.visible = o.head === 'band';
+    cap.visible = o.head === 'cap';
+    turban.visible = o.head === 'turban';
+    crown.visible = o.head === 'crown';
+    helmet.visible = o.head === 'helmet';
+    longHair.visible = o.hair === 'long';
+    if (beardMesh) {
+      // (a long beard: deeper, squared off, lying on the chest)
+      const long = o.beard === 'long';
+      beardMesh.scale.set(long ? 1.12 : 1.05, long ? 2.1 : 1.2, long ? 0.78 : 0.8);
+      beardMesh.position.set(0, long ? -0.255 : -0.2, long ? 0.07 : 0.075);
+    }
     cloakMesh.visible = o.cloak;
     skirt.visible = o.hem > 0;
     skirt.material.uniforms.uEdge.value = o.edge;
@@ -486,6 +549,7 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
       skirt.geometry = skirtShape(o.hem);
       skirtHem = o.hem;
     }
+    staff.visible = !!o.staff;
     dagger.visible = o.blade > 0;
     if (o.blade > 0) {
       sheath.scale.y = o.blade;
@@ -505,6 +569,8 @@ export async function createWanderer(field, onProgress, clothes = {}, { man: giv
     cloak,
     cloakMesh,
     group,
+    /** The staff, if he carries one (OUTFIT.staff): whoever moves him stands it in his hand. */
+    staff,
     /** How much he shines: 0 for a man, towards 1 for an angel. */
     glow,
     /** What he wears now (ROBE's fields). */

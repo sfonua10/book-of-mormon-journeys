@@ -11,23 +11,27 @@
 // by the flame (3:22): that is read, in the dark, and not seen. The fourth in the fire is shown as the king saw him,
 // "like the Son of God" (3:25): a figure in white, in light, who says and does nothing the text does not.
 import { BABYLON, IN_BABYLON } from './babylon.js';
+import { createCrowd } from './crowd.js';
 import { createHalo } from './halo.js';
 import { GATE } from './places.js';
 
 /** Babylon, in place of Jerusalem. */
 export const LOOK = BABYLON;
 
-// What each of them wears, as cel paint ([in the light, in the shade]) and as an outfit (wanderer.js, ROBE).
-// Babylon about 600 BC: a long tunic, a mantle over it, a cloth or a band on the head. The three were "bound in
-// their coats, their hosen, and their hats, and their other garments" (3:21): men of rank, fully dressed.
+// What each of them wears, as cel paint ([in the light, in the shade]) and as an outfit (wanderer.js, ROBE). As near
+// as can be told of men in Babylon about 600 BC (the README says how near, and what is a guess): a tunic to the feet,
+// fringed at its hem, a mantle over it, sandals, a round cap or a cloth wound about the head, hair worn to the
+// shoulders, a beard. The three are officers of the province (2:49, 3:12), and were bound "in their coats, their
+// hosen, and their hats, and their other garments" (3:21: what the Aramaic words named is not certain). Their colours
+// are not known: they are told apart by them.
 const tunic = (lit, shade) => ({ SHIRT: [lit, shade], TROUSERS: [lit.map((v) => v * 0.95), shade], SKIRT: [lit, shade] });
 const officer = (lit, shade, cloak, cloakShade) => ({
   ...tunic(lit, shade),
   CLOAK: [cloak, cloakShade],
-  HAT: [[0.9, 0.86, 0.76], [0.56, 0.53, 0.56]],
-  TRIM: [[0.82, 0.68, 0.4], [0.5, 0.4, 0.26]],
+  HAT: [[0.88, 0.82, 0.7], [0.54, 0.5, 0.52]],
+  TRIM: [[0.86, 0.72, 0.42], [0.52, 0.42, 0.28]],
   BELT: [[0.4, 0.26, 0.15], [0.2, 0.13, 0.1]],
-  OUTFIT: { head: 'cloth', cloak: true, hem: 0.12, edge: 2, bare: 0, belt: 2, cuffs: 0, lace: 0.32, blade: 0, sleeves: true },
+  OUTFIT: { head: 'cap', hair: 'long', cloak: true, hem: 0.04, edge: 4, bare: 0, belt: 2, cuffs: 0, lace: 0.32, blade: 0, sleeves: true },
 });
 export const CLOTHES = {
   // you: a long tunic of deep blue, a mantle of undyed wool
@@ -35,34 +39,37 @@ export const CLOTHES = {
   // the other two: one in green, one in a red-brown
   friend1: officer([0.3, 0.5, 0.36], [0.15, 0.25, 0.24], [0.8, 0.74, 0.6], [0.46, 0.42, 0.42]),
   friend2: officer([0.62, 0.34, 0.24], [0.32, 0.16, 0.16], [0.86, 0.8, 0.68], [0.52, 0.48, 0.48]),
-  // Nebuchadnezzar the king: a long robe of white, a mantle of purple bordered with gold, a band of gold on his brow
+  // Nebuchadnezzar the king, as the kings of Babylon are carved: a tall rounded crown with a band of gold and its
+  // ribbons hanging behind, a long fringed robe, a mantle of purple bordered with gold, a long beard, and a staff
+  // as tall as himself
   king: {
     ...tunic([0.95, 0.92, 0.86], [0.56, 0.54, 0.64]),
-    CLOAK: [[0.46, 0.14, 0.46], [0.22, 0.07, 0.27]],
+    CLOAK: [[0.36, 0.08, 0.22], [0.18, 0.04, 0.14]],
+    HAT: [[0.95, 0.92, 0.84], [0.6, 0.57, 0.62]],
     HEADBAND: [[1.0, 0.8, 0.3], [0.62, 0.46, 0.2]],
     TRIM: [[1.0, 0.8, 0.3], [0.62, 0.46, 0.2]],
     BELT: [[0.62, 0.12, 0.12], [0.34, 0.06, 0.1]],
     HAIR: [[0.1, 0.08, 0.07], [0.05, 0.04, 0.05]],
-    OUTFIT: { head: 'band', cloak: true, hem: 0.06, edge: 2, bare: 0, belt: 1, cuffs: 1, lace: 0.3, blade: 0, sleeves: true },
+    BEARD: [[0.1, 0.08, 0.07], [0.05, 0.04, 0.05]],
+    OUTFIT: { head: 'crown', hair: 'long', beard: 'long', cloak: true, hem: 0.02, edge: 4, bare: 0, belt: 1, cuffs: 1, lace: 0.3, blade: 0, sleeves: true, staff: true },
   },
-  // the herald: a short tunic of red, a plain head cloth
+  // the herald: a tunic of red to the calf, a cloth wound about his head
   herald: {
     ...tunic([0.66, 0.2, 0.16], [0.36, 0.1, 0.12]),
     TRIM: [[0.86, 0.72, 0.4], [0.52, 0.42, 0.26]],
     HAT: [[0.84, 0.78, 0.64], [0.5, 0.46, 0.46]],
     BELT: [[0.36, 0.22, 0.12], [0.18, 0.11, 0.09]],
-    OUTFIT: { head: 'cloth', cloak: false, hem: 0.42, edge: 2, bare: 0, belt: 2, cuffs: 0, lace: 0.34, blade: 0 },
+    OUTFIT: { head: 'turban', hair: 'long', cloak: false, hem: 0.28, edge: 4, bare: 0, belt: 2, cuffs: 0, lace: 0.34, blade: 0 },
   },
-  // "the most mighty men that were in his army" (3:20): a coat of bronze scales over a short tunic, guards on the
-  // forearms, a head cloth
+  // "the most mighty men that were in his army" (3:20): a coat of bronze scales over a short tunic, a pointed
+  // helmet, guards on the forearms (of how Babylon's soldiers were armed almost nothing is pictured: this is a guess)
   mighty: {
     ...tunic([0.7, 0.62, 0.5], [0.4, 0.35, 0.36]),
-    HAT: [[0.62, 0.3, 0.2], [0.34, 0.16, 0.16]],
     TRIM: [[0.5, 0.2, 0.16], [0.28, 0.1, 0.1]],
     BELT: [[0.3, 0.2, 0.12], [0.16, 0.1, 0.08]],
     LEATHER: [[0.6, 0.42, 0.24], [0.34, 0.23, 0.16]],
     GOLD: [[0.86, 0.62, 0.3], [0.5, 0.34, 0.18]],
-    OUTFIT: { head: 'cloth', cloak: false, hem: 0.5, edge: 2, bare: 0, belt: 1, cuffs: 1, lace: 0.4, blade: 0.5, armour: true },
+    OUTFIT: { head: 'helmet', hair: 'long', cloak: false, hem: 0.5, edge: 2, bare: 0, belt: 1, cuffs: 1, lace: 0.4, blade: 0.5, armour: true },
   },
   // the fourth: a loose white robe to below the feet, wide sleeves, open at the neck
   fourth: {
@@ -75,6 +82,26 @@ export const CLOTHES = {
     OUTFIT: { head: 'none', cloak: false, hem: 0.01, edge: 0, bare: 0, belt: 0, cuffs: 0, lace: 0, blade: 0, sleeves: true, neck: 'v' },
   },
 };
+
+/**
+ * The people gathered on the plain (the cast's ten "townsfolk", town.js): officers of the provinces and people of
+ * many nations, in tunics of many colours, fringed, caps and turbans.
+ */
+const gathered_ = (lit, shade, head, hat, hem) => ({
+  ...tunic(lit, shade),
+  HAT: [hat, hat.map((v) => v * 0.6)],
+  TRIM: [[0.84, 0.7, 0.42], [0.5, 0.42, 0.28]],
+  BELT: [[0.4, 0.28, 0.17], [0.2, 0.14, 0.11]],
+  OUTFIT: { head, hair: 'long', cloak: false, hem, edge: 4, bare: 0, belt: 2, cuffs: 0, lace: 0.3, blade: 0 },
+});
+const PEOPLE_CLOTHES = [
+  gathered_([0.8, 0.74, 0.6], [0.46, 0.42, 0.42], 'cap', [0.88, 0.84, 0.74], 0.05),
+  gathered_([0.6, 0.24, 0.18], [0.32, 0.12, 0.13], 'turban', [0.86, 0.8, 0.66], 0.05),
+  gathered_([0.26, 0.34, 0.54], [0.13, 0.17, 0.32], 'cap', [0.82, 0.74, 0.58], 0.05),
+  gathered_([0.72, 0.56, 0.3], [0.4, 0.3, 0.2], 'turban', [0.3, 0.36, 0.52], 0.3),
+  gathered_([0.34, 0.44, 0.32], [0.17, 0.22, 0.2], 'cap', [0.88, 0.84, 0.74], 0.05),
+];
+
 /** Who is in the story, in the order they are made, and whether they wear a beard. */
 export const PEOPLE = [
   ['meshach', 'friend1', true],
@@ -99,8 +126,11 @@ export function story(g) {
   const me = () => [g.player.x, g.player.z];
   const from = ([x, z]) => Math.hypot(g.player.x - x, g.player.z - z);
   const shoulder = (point, options) => g.shoulder(point, options);
-  /** The ten people of the city: the crowd, the counsellors. */
+  /** The ten people of the city: the crowd, the counsellors. They are dressed as Babylon's. */
   const people = Array.from({ length: 10 }, (_, i) => `town${i}`);
+  people.forEach((name, i) => who(name).w.dress(PEOPLE_CLOTHES[i % PEOPLE_CLOTHES.length]));
+  // and about them the multitude, painted (crowd.js)
+  const crowd = createCrowd(g.scene, g.field, g.heightAt);
 
   // the places, in the world's (x, z)
   const gateOut = P(GATE[0] - 14, 0);
@@ -145,6 +175,7 @@ export function story(g) {
       f.halo.update(t * 6);
       f.halo.set(x, g.heightAt(x, z) + f.up + 0.25 * Math.sin(t * f.pace * 0.8), z, fire.now * waver * 0.5);
     }
+    crowd.update(g.clock());
     requestAnimationFrame(burn);
   };
   requestAnimationFrame(burn);
@@ -179,22 +210,34 @@ export function story(g) {
       n.lift = 0;
     }
     bind(false);
+    crowd.show(false);
+    crowd.fall(null);
     fire.level = 0.5;
     g.standAt(stand[0], stand[1], yawTo(stand, face));
   }
-  /** The people gathered before the image, in two rows, and the herald at its foot. */
+  /**
+   * The people gathered before the image: the ten nearest you in two rows, the multitude before them and to either
+   * side, all facing the image; and the herald at its foot.
+   */
   function gathered() {
     people.forEach((name, i) => {
       const row = Math.floor(i / 5);
-      const p = P(iu + 14 + row * 2.6, iv + (i % 5 - 2) * 2.3 + (row ? 1.1 : 0) - 1);
+      const p = P(iu + 28 + row * 2.6, iv + (i % 5 - 2) * 2.3 + (row ? 1.1 : 0) - 1);
       who(name).place(p[0], p[1], yawTo(p, image)).face(...image);
     });
     who('herald').place(...heraldAt, yawTo(heraldAt, before)).face(...before);
+    const many = [];
+    let k = 1;
+    const shake = () => ((k = (k * 16807) % 2147483647) / 2147483647 - 0.5);
+    for (let r = 0; r < 10; r++) for (let v = -24; v <= 24; v += 1.55) if (Math.abs(v) > 1.4) many.push(P(iu + 10 + r * 1.8 + shake() * 0.6, iv + v + shake() * 0.7));
+    for (let u = iu + 27; u < iu + 46; u += 2) for (const side of [-1, 1]) for (let v = 9; v <= 24; v += 1.7) many.push(P(u + shake() * 0.7, iv + side * (v + shake() * 0.6)));
+    crowd.place(many, 7);
   }
   /** All the people fall down before the image (or rise), not all at the one moment. */
   function fallDown(on) {
     people.forEach((name, i) => setTimeout(() => (who(name).bow = on ? 1 : 0), on ? 150 + ((i * 370) % 1300) : (i * 210) % 900));
     who('herald').bow = on ? 1 : 0;
+    crowd.fall(on ? g.clock() : null);
   }
 
   /**
