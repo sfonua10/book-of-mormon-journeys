@@ -141,6 +141,23 @@ const CSS = /* css */ `
 .g-screen blockquote { margin: 18px auto; font-style: italic; font-size: 18px; line-height: 1.55; }
 .g-screen blockquote cite { display: block; font-style: normal; margin-top: 6px; color: var(--gold); font-size: 14px; font-variant: small-caps; }
 .g-screen { overflow-y: auto; }
+/* at a journey's end, under the ways on: one question to tap an answer to, and a box for a parent's note */
+.g-screen .heard { margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 15px; }
+.g-screen .heard .enjoyed { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 14px; }
+.g-screen .heard button { font-size: 15px; padding: 7px 16px; margin: 0 4px; }
+.g-screen .heard button:disabled { opacity: 0.5; cursor: default; }
+.g-screen .heard .note { display: grid; gap: 6px; margin: 20px auto 0; max-width: 460px; text-align: left; }
+.g-screen .heard .note label { opacity: 0.85; }
+.g-screen .heard .note label + textarea + label { margin-top: 8px; }
+.g-screen .heard textarea, .g-screen .heard input {
+  font: inherit; font-size: 16px; line-height: 1.45; color: var(--ink); background: rgba(244, 234, 214, 0.07); border: 1px solid var(--line);
+  border-radius: 4px; padding: 8px 10px; width: 100%; box-sizing: border-box; resize: vertical;
+  -webkit-user-select: text; user-select: text;
+}
+.g-screen .heard textarea:focus, .g-screen .heard input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+.g-screen .heard .note button { justify-self: start; margin: 8px 0 0; }
+.g-screen .heard .said { opacity: 0.85; }
+.g-screen .heard .quiet { font-size: 12px; opacity: 0.55; margin: 18px 0 0; }
 .g-screen .box { padding: 24px 0; }
 /* the list of journeys: plain, over the painting dimmed right down, so that the rows are what is looked at */
 #g-title { background: rgba(14, 10, 6, 0.88); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
@@ -471,7 +488,7 @@ export function createUI({ touch = false } = {}) {
      * The end of a journey: what was read, where to read more, something to talk about. `copy` is the story's own
      * (stories.js, end): { heading, quote, cite, talk, links: [[name, url]] }.
      */
-    end({ copy, onAgain, onBack }) {
+    end({ copy, onAgain, onBack, onEnjoyed = null, onNote = null, counted = false }) {
       const links = copy.links.map(([name, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a>`);
       const listed = links.length > 1 ? `${links.slice(0, -1).join(', ')} and ${links.at(-1)}` : links.join('');
       end.innerHTML = `<div class="box">
@@ -482,15 +499,70 @@ export function createUI({ touch = false } = {}) {
         ${listed ? `<p>Read the whole account in ${listed}.</p>` : ''}
         <p class="next">The next journey arrives next week.</p>
         <button data-go="back">Back to journeys</button><button data-go="again" class="plain">Play again</button>
+        ${
+          onEnjoyed || onNote
+            ? `<div class="heard">
+          ${
+            onEnjoyed
+              ? `<div class="enjoyed"><span>Did your family enjoy this journey?</span>
+            <span class="taps"><button type="button" class="plain" data-enjoyed="yes">Yes</button><button type="button" class="plain" data-enjoyed="somewhat">Somewhat</button><button type="button" class="plain" data-enjoyed="no">Not really</button></span></div>`
+              : ''
+          }
+          ${
+            onNote
+              ? `<form class="note">
+            <label for="g-note">Parents: what did this journey mean to your family?</label>
+            <textarea id="g-note" rows="3" maxlength="600"></textarea>
+            <label for="g-note-email">Your email, if you would like to hear when a new journey arrives (optional)</label>
+            <input id="g-note-email" type="email" maxlength="120" autocomplete="email" />
+            <button type="submit" class="plain">Send</button>
+            <span class="said" role="status"></span>
+          </form>`
+              : ''
+          }
+          ${counted ? '<p class="quiet">Plays are counted, with nothing that says who you are. No cookies.</p>' : ''}
+        </div>`
+            : ''
+        }
       </div>`;
       end.classList.add('on');
-      for (const b of end.querySelectorAll('button')) {
+      for (const b of end.querySelectorAll('button[data-go]')) {
         b.addEventListener('click', () => {
           end.classList.remove('on');
           (b.dataset.go === 'back' ? onBack : onAgain)();
         });
       }
-      end.querySelector('button').focus();
+      // the one question, answered with a tap: the answers give place to a word of thanks
+      for (const b of end.querySelectorAll('button[data-enjoyed]')) {
+        b.addEventListener('click', () => {
+          onEnjoyed(b.dataset.enjoyed);
+          end.querySelector('.enjoyed').innerHTML = '<span>Thank you.</span>';
+        });
+      }
+      // a parent's note: sent when there is one, and the box gives place to a word of thanks
+      const form = end.querySelector('form.note');
+      if (form) {
+        const [note, email] = [form.querySelector('textarea'), form.querySelector('input')];
+        const said = form.querySelector('.said');
+        // (the page takes Space, Tab and the arrows for walking, and E and Enter for going on: here they are for writing)
+        for (const field of [note, email]) for (const type of ['keydown', 'keyup', 'keypress']) field.addEventListener(type, (e) => e.stopPropagation());
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const words = note.value.trim();
+          if (!words) return void note.focus();
+          const send = form.querySelector('button');
+          send.disabled = true;
+          said.textContent = 'Sending…';
+          try {
+            await onNote({ note: words, email: email.validity.valid ? email.value.trim() : '' });
+            form.innerHTML = '<span class="said">Thank you. Your note has been sent.</span>';
+          } catch {
+            send.disabled = false;
+            said.textContent = 'It could not be sent. Please try again.';
+          }
+        });
+      }
+      end.querySelector('button[data-go]').focus();
     },
   };
 }

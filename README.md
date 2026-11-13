@@ -84,6 +84,20 @@ Useful URL options:
 - `?names=0` leaves off the names written small over those the text names (`src/game/names.js`)
 - `?beat=a2` starts at a beat. The beats are `a1`, `a1-gate`, `a2`, `a2-laban`, `a2-rock`, `a3`, `a3-laban`, `a3-treasury`, `a3-walls` and `home`.
 - `?auto` lets the game play itself. With `&hold` it is overtaken once in the chase before it leaves the property, and with `&wrong` it answers Zoram wrongly once each time and fills in every left-out word wrongly, so a test covers those ways too.
+- `?count=log` writes what would be counted to the console in place of counting it (see "What is counted").
+
+## What is counted
+
+To know whether the game is played, and where it is left off, a little is counted, with [Umami](https://umami.is): no cookies, nothing kept in the browser, and nothing that says who is playing.
+
+- Umami's script (in `index.html`) counts each visit: the page, the site that linked to it, the country, and the kind of device.
+- `src/game/tally.js` counts a journey as it is played: `start` (which journey, begun or gone on with, by touch or keys), each act as it is reached (`act-two`, `act-three`, …), `left` (the beat it was left at, and after how many minutes) if the page is closed before the end, `end` (and how many minutes it took), and `again`. In Umami these are filed under the journey's name as a page (`/scripture-journeys/fiery-furnace`), so one journey's can be told from another's.
+- The end of a journey asks one question, "Did your family enjoy this journey?", answered with a tap (`enjoyed`: yes, somewhat or no).
+- A parent may write a note there, and leave an email to hear of new journeys. That goes to a Google Form, not to Umami (which is told only that a note was sent), and the box is shown only once the form is named in `GAME.notes` in `src/game/stories.js`.
+
+Nothing is counted on your own machine or by the tests (the script counts only on the address named in its `data-domains`, which must be changed if the game moves), nor where the browser asks not to be tracked. To leave your own plays on the live game out, run `localStorage.setItem('umami.disabled', 1)` once in that browser's console.
+
+To see which place a link was posted brings players, give each its own: `…/scripture-journeys/?utm_source=facebook`, `?utm_source=reddit`, `?utm_source=x` (add `&story=fiery-furnace` to open on that journey's book). Umami lists these as sources, and `start` carries the same word as `from`.
 
 ## Checking it
 
@@ -100,6 +114,7 @@ node tools/story.mjs --query "story=fiery-furnace"                              
 node tools/story.mjs --query "story=fiery-furnace&bow&wrong"                         # falling down once, every word filled in wrongly
 node tools/excerpts.mjs                                                              # every shortened verse is the verse's own words
 node tools/same.mjs shots/before shots/after                                         # two folders of stills, pixel by pixel
+node tools/count-check.mjs                                                           # what is counted, and that a test's play is not
 ```
 
 `tools/same.mjs` is how a change to one journey is shown to leave another as it was: take stills of it with `tools/look.mjs` before the change and after, and compare.
@@ -118,6 +133,7 @@ On an Apple M4 at 1080p the game runs at about 56–68 fps at medium with the ca
 - `src/game/music.js`: the story's music, made in code and played through the valley's sounds.
 - `src/game/narration.js`: the scripture read aloud, from recordings in `public/audio/narration/` made by `tools/narrate.mjs` (ElevenLabs; the key is in `.env` and stays on your machine). A card with a recording goes on by itself when it has been read; the button at the top right, or M, turns the reading off.
 - `src/game/touch.js`: the touch controls, for phones and tablets.
+- `src/game/tally.js`: what leaves the page: the counts of how a journey is played, and a parent's note at its end.
 - `src/game/daniel.js`, `src/game/scripture-daniel.js`: the Daniel journey's beats, people and clothes; Daniel 3 verse by verse, the shortened verses and those with a word left out.
 - `src/game/babylon.js`, `src/game/glaze.js`: Babylon and the plain of Dura; the glazed brick's figures (bull, dragon, lion, rosette, palmette), drawn in code.
 - `src/game/crowd.js`: the multitude, painted, which falls down when the music sounds.

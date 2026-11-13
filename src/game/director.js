@@ -11,8 +11,9 @@
  * @param g the game: player, standAt, setHour, cast, ... (see main.js)
  * @param options.auto play itself
  * @param options.keep the story's keeper (stories.js): where the beat reached is kept, and that it was finished
+ * @param options.on told as the story goes: `on('beat', beat)` as each beat begins, `on('end', beat)` at its end
  */
-export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, keep = null } = {}) {
+export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, keep = null, on = null } = {}) {
   let time = 0;
   const waits = [];
   let pressed = false;
@@ -237,11 +238,13 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
       if (i === start && !current.scene) ui.fade(0, 1);
       keep?.keep(current.id, current.label);
       g.log(`beat ${current.id}`);
+      on?.('beat', current);
       await current.run(c, g);
     }
     ended = true;
     keep?.keep(null);
     if (keep) keep.done = true;
+    on?.('end', current);
     g.log('the end');
   }
 

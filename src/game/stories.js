@@ -13,6 +13,12 @@ export const GAME = {
   name: 'Scripture Journeys',
   /** The start of every key kept in the browser. */
   save: 'bom-journeys',
+  /**
+   * The Google Form a parent's note at a journey's end is sent to (tally.js): `url` is the form's address ending
+   * in /formResponse, and the rest are the names of its fields (entry.123…), as its pre-filled link shows them.
+   * With no `url` the end of a journey asks for no note.
+   */
+  notes: { url: '', journey: '', note: '', email: '' },
 };
 
 /**

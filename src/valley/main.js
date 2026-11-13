@@ -31,6 +31,7 @@ import { cloneMan, createCast } from '../game/npc.js';
 import { createNames } from '../game/names.js';
 import { GAME, keeper, STORIES, storyById, WORKS } from '../game/stories.js';
 import { createUI } from '../game/ui.js';
+import { createNotes, createTally } from '../game/tally.js';
 import { createTouch, wantsTouch } from '../game/touch.js';
 import { loadMan } from '../figure/man.js';
 import { fromValley, heightAt, HERO, LAND, paint, setLand, START, tarnDistance } from './world.js';
@@ -39,6 +40,8 @@ import { CITY, IN_CITY, PLAIN } from '../game/places.js';
 const params = new URLSearchParams(location.search);
 // the journey this page plays (?story=id): the first, if none is asked for
 const journey = storyById(params.get('story'));
+// how this journey is played, counted (tally.js; the page's being opened is counted by Umami's script, in index.html)
+const tally = createTally({ journey: journey.id, params, log: (message) => console.log(`[game] ${message}`) });
 // the land it is told in: the hill country round Jerusalem, unless it brings its own (Babylon's plain). Chosen before
 // anything reads the ground, here and in the worker that bakes it.
 setLand(journey.land ?? 'hills');
@@ -943,7 +946,25 @@ const g = {
   },
   /** The journey's end: its own words, and the ways on from there (the page is loaded afresh for either). */
   end() {
-    ui.end({ copy: journey.end, onAgain: () => openJourney(journey.id, 'begin'), onBack: () => openJourney(null) });
+    const notes = createNotes({ form: GAME.notes, params, log: g.log });
+    ui.end({
+      copy: journey.end,
+      onAgain: () => {
+        tally('again', { journey: journey.id });
+        openJourney(journey.id, 'begin');
+      },
+      onBack: () => openJourney(null),
+      // (asked only where the answer is counted)
+      onEnjoyed: tally.on ? (answer) => tally('enjoyed', { journey: journey.id, answer }) : null,
+      onNote: notes
+        ? async ({ note, email }) => {
+            await notes({ journey: journey.id, note, email });
+            // (that a note was sent, not its words)
+            tally('note', { journey: journey.id });
+          }
+        : null,
+      counted: tally.on,
+    });
   },
   /** Whether the story holds Nephi still (a card is up). */
   get frozen() {
@@ -953,7 +974,35 @@ const g = {
 // (the people of the city, as the journey has them: Jerusalem's, unless it brings its own)
 g.town = journey.town ? journey.town(g) : createTown(g);
 guidance = createGuidance(g, ui);
-director = createDirector(journey.beats(g), ui, g, { keep: keeper(journey), auto: g.auto, autoRead: params.has('autoread') ? Number(params.get('autoread')) : 0.15 });
+// what is counted of a journey (tally.js): that it was begun (or gone on with) and where, each act after that as it
+// is reached, where it was left if it was not finished, and its end with how long it took
+const played = { since: 0, act: null, left: null };
+const minutes = () => Math.round((performance.now() - played.since) / 60000);
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+director = createDirector(journey.beats(g), ui, g, {
+  keep: keeper(journey),
+  auto: g.auto,
+  autoRead: params.has('autoread') ? Number(params.get('autoread')) : 0.15,
+  on(what, beat) {
+    if (what === 'end') return void tally('end', { journey: journey.id, minutes: minutes() });
+    if (!played.since) {
+      played.since = performance.now();
+      tally('start', { journey: journey.id, at: beat.id, go: beat.id === journey.first ? 'begin' : 'continue', by: touch ? 'touch' : 'keys', quality, ...(tally.from && { from: tally.from }) });
+    } else if (beat.label && beat.label !== played.act) tally(slug(beat.label), { journey: journey.id });
+    played.act = beat.label;
+  },
+});
+// left before its end: counted once for each beat it is left at (a page put by and come back to is not left twice)
+const leaving = () => {
+  const at = director?.beat;
+  if (!played.since || !at || director.ended || played.left === at) return;
+  played.left = at;
+  tally('left', { journey: journey.id, at, minutes: minutes() });
+};
+addEventListener('pagehide', leaving);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') leaving();
+});
 
 // for tests and filming: everything the page is made of, and a clock to drive by hand
 window.__tg = { sounds, walker, follow, input, wanderer, animator, setThird, standAt, pickTime, timings, view: null, wind, THREE, renderer, scene, camera, field, frame, sky, trees, farWoods, stones, player, keys, tick, setHour, setWind, fromValley, director, cast, props, city, g, ready: true };
