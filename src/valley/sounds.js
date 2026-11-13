@@ -82,13 +82,14 @@ export function createSounds(base = './audio/') {
     async load() {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
-      let names;
+      // (the build writes the list. `npm run dev` serves the files as they lie, with no list: there the footsteps,
+      // which are always here, are asked for, so that the game has its sound while it is being worked on)
+      let names = [1, 2, 3, 4, 5].map((i) => `footstepOnGrass${i}Medium`);
       try {
         const res = await fetch(`${base}manifest.json`);
-        if (!res.ok) return;
-        names = await res.json();
+        if (res.ok) names = await res.json();
       } catch {
-        return;
+        // (no list)
       }
       try {
         ctx = new Ctx();
