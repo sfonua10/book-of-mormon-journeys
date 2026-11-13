@@ -2,7 +2,7 @@
 
 Painted walking games through the scriptures, one journey at a time. The first screen asks for a book of scripture (the Book of Mormon, the Old Testament), then lists that book's journeys, with the next one shown as coming.
 
-Adding a journey: write its story beside `src/game/story.js`, give it an entry in `src/game/stories.js` with its `work` (the book it belongs to), its `scripture` (the verses its cards quote) and `released: true`. A journey may bring its own city (`look`), people and clothes, as the Daniel journey does (`src/game/daniel.js`, `src/game/babylon.js`). Each journey keeps its own place in the browser.
+Adding a journey: write its story beside `src/game/story.js`, give it an entry in `src/game/stories.js` with its `work` (the book it belongs to), its `scripture` (the verses its cards quote) and `released: true`. A journey may bring its own land (`land`: the hill country round Jerusalem, or `'plain'`, the river plain of Babylon, in `src/valley/world.js`), its own city (`look`), people and clothes, as the Daniel journey does (`src/game/daniel.js`, `src/game/babylon.js`). Each journey keeps its own place in the browser.
 
 (The game was first called Book of Mormon Journeys; the web address and the repository keep that name.)
 
@@ -14,9 +14,30 @@ A short painted walking game through **1 Nephi 3–4**: Nephi and his brothers g
 
 ## Old Testament, Journey 1: But If Not
 
-**Daniel 3**, in the King James Version: Shadrach, Meshach and Abed-nego before the image of gold, before the king, and in the burning fiery furnace. You are one of the three. When the music sounds and all the people fall down you may stand, as they did; if you fall down with the rest it begins again. The fourth in the fire is shown as the king saw him (3:25) and says and does nothing the text does not. It has no recorded reading yet; the cards are read on the screen.
+**Daniel 3**, in the King James Version: Shadrach, Meshach and Abed-nego before the image of gold, before the king, and in the burning fiery furnace. You are one of the three. It follows that week's *Come, Follow Me* ("I can trust in the Lord when my faith is tried"), and its end asks what the lesson asks.
 
 > "If it be so, our God whom we serve is able to deliver us from the burning fiery furnace, and he will deliver us out of thine hand, O king. But if not, be it known unto thee, O king, that we will not serve thy gods, nor worship the golden image which thou hast set up." (Daniel 3:17–18)
+
+It is played more than it is read. What is said (the herald's command, the king's words, the three's answer) is a card, read before the story goes on; what is only done is a line at the top, read while you walk; a list said over again is cut short with "…" (the cut verses are in `src/game/scripture-daniel.js` and `tools/excerpts.mjs` checks each is the verse's own words in order). There are about 19 stops.
+
+| Act | Verses | What you do |
+|---|---|---|
+| One: The Image of Gold | 3:1–13 | Walk out of Babylon by the Ishtar Gate, between the walls of lions, to the plain of Dura, where the image stands and the multitude is gathered. The herald cries. The music of 3:5 enters an instrument at a time, in the verse's order, and all the people fall down; you may stand, as the three did, or fall down with them, and it begins again. Then you see the three standing among them all. Two Chaldeans go to the king and accuse them. |
+| Two: Before the King | 3:13–18 | The mighty men take you to the king's seat. As he names the furnace you see it. Answer him: fill in "But if ___". |
+| Three: In the Midst of the Fire | 3:19–30 | The furnace is heated seven times more; you are bound and led to it, and on the way remember that "our God whom we serve is ___ to deliver us". In the fire the fourth comes to walk with you; then, as the king saw it, count them. Come forth, and go among the princes and counsellors as the four things they saw (3:27) are told. The king blesses God. |
+
+Four times a verse is shown with a word left out, to be filled in from three, and is then read whole; a wrong answer costs nothing. The fourth in the fire is shown as the king saw him, "like the Son of God" (3:25): a figure in white, in light, who says and does nothing the text does not, and is not seen once they have come forth. The men slain by the flame (3:22) are read of in the dark, not shown. There is no score and no other ending. It has no recorded reading yet (31 recordings, about 5,200 characters, are listed by `node tools/narrate.mjs --story fiery-furnace --dry`); the cards are read on the screen.
+
+### Babylon, and how sure we are of it
+
+Babylon has its own land (`world.js`, `'plain'`): a level river plain, the Euphrates going by the city, canals with fields of barley, stubble and fallow along them, date palms, and air thick with dust, no hills and no mountains. Its city (`src/game/babylon.js`) and its people (`daniel.js`) are drawn from what is known of Babylon about 600 BC:
+
+- **Well attested** (the excavations, the museums' reconstructions): a city of brick, the colour of the brick, with glazed brick only on its great works; the Ishtar Gate faced with blue glaze, bulls and dragons walking on it in rows, never mixed in one row; the Processional Way paved with pale limestone edged with red stone, between walls of glazed lions; the king's house with yellow columns and palmettes on blue; the temple tower in stages with a blue shrine; the king as the stelae show him, in a tall conical crown with ribbons hanging behind, a long fringed robe, with a staff as tall as himself.
+- **Probable, or a guess**: stepped battlements (no wall top survives to show them); houses blind to the street; men's dress of a tunic to the feet, a mantle and a cap over hair to the shoulders (Herodotus, writing later); soldiers in scale coats and pointed helmets (almost no Babylonian soldier is pictured); the furnace as a brick kiln with a door in its side and an opening at its top; the instruments of 3:5 (the Church's footnotes give "triangular stringed instrument" and "bagpipe"; others say a drum); the colours of everyone's clothes.
+- **Not to scale**: the city is a small one, and its temple tower smaller than the real one (91 m square at its base).
+- **Not known**: where the plain of Dura was; what the image of gold was an image of. It is given the verse's measure, 60 by 6 cubits (27.4 m by 2.74 m), as a robed figure with a tall cap and no face on a tall base, as the Church's illustrated story has "a giant, golden statue".
+
+Not in the text, shown because a scene needs it: the king's seat on a dais under a canopy; the furnace's ramp; the people's staffs, helmets and colours; the fourth walking beside you (3:25 says "walking"); remembering 3:17 on the way to the furnace, and the still chord that follows; the four things of 3:27 told as you go among the officials.
 
 It is a remix of Patch's [Painted valley](https://patch.gg/blendi/painted-valley), a three.js scene painted like an animated film's backgrounds. The painting, grass, sky, figure and walk come from Painted valley. This game adds the hill country, the city, the story and the night.
 
@@ -70,7 +91,13 @@ node tools/look.mjs city:120,0,0,4,50 --out shots/work                          
 node tools/touch.mjs                                                                 # the touch controls, on a phone-sized touch page
 node tools/narration-check.mjs                                                       # the reading aloud, with a stand-in recording
 node tools/fps.mjs --query "quality=medium&beat=a2-laban"                            # frame rate
+node tools/story.mjs --query "story=fiery-furnace"                                   # the Daniel journey, to its end
+node tools/story.mjs --query "story=fiery-furnace&bow&wrong"                         # falling down once, every word filled in wrongly
+node tools/excerpts.mjs                                                              # every shortened verse is the verse's own words
+node tools/same.mjs shots/before shots/after                                         # two folders of stills, pixel by pixel
 ```
+
+`tools/same.mjs` is how a change to one journey is shown to leave another as it was: take stills of it with `tools/look.mjs` before the change and after, and compare.
 
 On an Apple M4 at 1080p the game runs at about 56–68 fps at medium with the cast on screen, and about 52 fps at high.
 
@@ -86,8 +113,12 @@ On an Apple M4 at 1080p the game runs at about 56–68 fps at medium with the ca
 - `src/game/music.js`: the story's music, made in code and played through the valley's sounds.
 - `src/game/narration.js`: the scripture read aloud, from recordings in `public/audio/narration/` made by `tools/narrate.mjs` (ElevenLabs; the key is in `.env` and stays on your machine). A card with a recording goes on by itself when it has been read; the button at the top right, or M, turns the reading off.
 - `src/game/touch.js`: the touch controls, for phones and tablets.
+- `src/game/daniel.js`, `src/game/scripture-daniel.js`: the Daniel journey's beats, people and clothes; Daniel 3 verse by verse, the shortened verses and those with a word left out.
+- `src/game/babylon.js`, `src/game/glaze.js`: Babylon and the plain of Dura; the glazed brick's figures (bull, dragon, lion, rosette, palmette), drawn in code.
+- `src/game/crowd.js`: the multitude, painted, which falls down when the music sounds.
+- `src/game/heat.js`: the furnace's heat at the picture's edges.
 - `src/game/ui.js`: the cards, the "What to do" panel (a line, and a checklist when the thing has parts), prompt, marker, fades, and the title and end screens.
-- `src/valley/`, `src/lib/`, `src/figure/`: Painted valley's painting, recoloured for dry hills and given a night (`sky.js`).
+- `src/valley/`, `src/lib/`, `src/figure/`: Painted valley's painting, recoloured for dry hills and given a night (`sky.js`). `world.js` has the two lands; `sky.js`, `clouds.js`, `trees.js` (olives, or date palms), `water.js` (the river) and the shared colours (`uLand` in `src/lib/glsl.js`) follow whichever the page is laid out on.
 
 ## Credits and licences
 
@@ -96,6 +127,6 @@ See `LICENCE-NOTES.md` and `public/CREDITS.md`. In short:
 - The figure, textures and footsteps are CC0.
 - The scripture text is public domain (the Book of Mormon, Project Gutenberg #17; the King James Bible, Project Gutenberg #10).
 - Painted valley's five ambience recordings are not included, because their licence doesn't allow passing them on. Wind and crickets are made in code instead.
-- The music is made in code and its one tune was written for this game, so there is nothing to license.
+- The music is made in code and its tunes were written for this game, so there is nothing to license.
 
 This is an independent project. It is not an official product of The Church of Jesus Christ of Latter-day Saints.

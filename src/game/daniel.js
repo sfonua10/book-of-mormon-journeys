@@ -46,7 +46,7 @@ export const CLOTHES = {
   // the other two: one in green, one in a red-brown
   friend1: officer([0.3, 0.5, 0.36], [0.15, 0.25, 0.24], [0.8, 0.74, 0.6], [0.46, 0.42, 0.42]),
   friend2: officer([0.62, 0.34, 0.24], [0.32, 0.16, 0.16], [0.86, 0.8, 0.68], [0.52, 0.48, 0.48]),
-  // Nebuchadnezzar the king, as the kings of Babylon are carved: a tall rounded crown with a band of gold and its
+  // Nebuchadnezzar the king, as the kings of Babylon are carved: a tall conical crown with a band of gold and its
   // ribbons hanging behind, a long fringed robe, a mantle of purple bordered with gold, a long beard, and a staff
   // as tall as himself
   king: {
