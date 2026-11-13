@@ -1,14 +1,22 @@
-# Book of Mormon Journeys
+# Scripture Journeys
 
-Painted walking games through the Book of Mormon, one journey at a time. A new journey is added each week; the first screen lists them, with the next one shown as coming.
+Painted walking games through the scriptures, one journey at a time. The first screen asks for a book of scripture (the Book of Mormon, the Old Testament), then lists that book's journeys, with the next one shown as coming.
 
-Adding a journey: write its story beside `src/game/story.js`, give it an entry in `src/game/stories.js` with `released: true`, and move the teaser entry after it. Each journey keeps its own place in the browser.
+Adding a journey: write its story beside `src/game/story.js`, give it an entry in `src/game/stories.js` with its `work` (the book it belongs to), its `scripture` (the verses its cards quote) and `released: true`. A journey may bring its own city (`look`), people and clothes, as the Daniel journey does (`src/game/daniel.js`, `src/game/babylon.js`). Each journey keeps its own place in the browser.
 
-## Journey 1: I Will Go and Do
+(The game was first called Book of Mormon Journeys; the web address and the repository keep that name.)
+
+## Book of Mormon, Journey 1: I Will Go and Do
 
 A short painted walking game through **1 Nephi 3–4**: Nephi and his brothers go back to Jerusalem for the plates of brass. You walk where they walked and read what they said, in the scripture's own words, at the moment each thing happens. The aim is to help families understand the account and see how the Lord prepared a way.
 
 > "I will go and do the things which the Lord hath commanded, for I know that the Lord giveth no commandments unto the children of men, save he shall prepare a way for them that they may accomplish the thing which he commandeth them." (1 Nephi 3:7)
+
+## Old Testament, Journey 1: But If Not
+
+**Daniel 3**, in the King James Version: Shadrach, Meshach and Abed-nego before the image of gold, before the king, and in the burning fiery furnace. You are one of the three. When the music sounds and all the people fall down you may stand, as they did; if you fall down with the rest it begins again. The fourth in the fire is shown as the king saw him (3:25) and says and does nothing the text does not. It has no recorded reading yet; the cards are read on the screen.
+
+> "If it be so, our God whom we serve is able to deliver us from the burning fiery furnace, and he will deliver us out of thine hand, O king. But if not, be it known unto thee, O king, that we will not serve thy gods, nor worship the golden image which thou hast set up." (Daniel 3:17–18)
 
 It is a remix of Patch's [Painted valley](https://patch.gg/blendi/painted-valley), a three.js scene painted like an animated film's backgrounds. The painting, grass, sky, figure and walk come from Painted valley. This game adds the hill country, the city, the story and the night.
 
@@ -86,7 +94,7 @@ On an Apple M4 at 1080p the game runs at about 56–68 fps at medium with the ca
 See `LICENCE-NOTES.md` and `public/CREDITS.md`. In short:
 - The code is MIT, from Patch and this game.
 - The figure, textures and footsteps are CC0.
-- The scripture text is public domain (Project Gutenberg #17).
+- The scripture text is public domain (the Book of Mormon, Project Gutenberg #17; the King James Bible, Project Gutenberg #10).
 - Painted valley's five ambience recordings are not included, because their licence doesn't allow passing them on. Wind and crickets are made in code instead.
 - The music is made in code and its one tune was written for this game, so there is nothing to license.
 

@@ -80,6 +80,8 @@ while (simulated < limit) {
       const ref = document.querySelector('#g-card.on .ref')?.textContent;
       if (ref && wanted.some((w) => ref.includes(w))) {
         cards.push(ref);
+        // (a second more, so the eye has come to where the story set it)
+        for (let k = 0; k < 30; k++) tg.tick(1 / 30);
         break;
       }
     }

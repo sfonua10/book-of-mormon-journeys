@@ -16,7 +16,7 @@ const [DX, DZ] = HERO;
 export const TURN = -Math.atan2(DZ, DX);
 
 /** Ground height at (u, v). */
-const ground = (u, v) => heightAt(...fromValley(u, v));
+export const ground = (u, v) => heightAt(...fromValley(u, v));
 
 function mulberry(seed) {
   let a = seed >>> 0;
@@ -30,7 +30,7 @@ function mulberry(seed) {
 }
 
 // What each face is: the shader paints them differently.
-const PART = { PLASTER: 0, ROOF: 1, DARK: 2, WOOD: 3, STONE: 4, CLOTH: 5, GOLD: 6, WINDOW: 7, LAMP: 8 };
+export const PART = { PLASTER: 0, ROOF: 1, DARK: 2, WOOD: 3, STONE: 4, CLOTH: 5, GOLD: 6, WINDOW: 7, LAMP: 8 };
 
 const PLASTERS = [
   [0.86, 0.8, 0.68],
@@ -42,8 +42,8 @@ const PLASTERS = [
 ];
 // (Jerusalem stone: pale gold)
 const STONE = [0.84, 0.74, 0.56];
-const ROOF = [0.66, 0.58, 0.46];
-const WOOD = [0.36, 0.24, 0.15];
+export const ROOF = [0.66, 0.58, 0.46];
+export const WOOD = [0.36, 0.24, 0.15];
 
 const vertex = /* glsl */ `
 ${COMMON}
@@ -228,7 +228,7 @@ function builder() {
 }
 
 /** The lowest ground under a footprint, so nothing stands on air. */
-function footing(u0, u1, v0, v1) {
+export function footing(u0, u1, v0, v1) {
   let lo = Infinity;
   for (const [u, v] of [[u0, v0], [u1, v0], [u0, v1], [u1, v1], [(u0 + u1) / 2, (v0 + v1) / 2]]) lo = Math.min(lo, ground(u, v));
   return lo;
@@ -238,7 +238,7 @@ function footing(u0, u1, v0, v1) {
  * A house with a flat roof and a low parapet. `door`: which side the door is on ('w', 'e', 's', 'n') and where along
  * it, or null. Windows go high on the faces listed in `windows`, a few to each.
  */
-function house(b, random, u0, u1, v0, v1, h, { colour, door = null, windows = 'wesn', seed = random() } = {}) {
+export function house(b, random, u0, u1, v0, v1, h, { colour, door = null, windows = 'wesn', seed = random() } = {}) {
   const base = footing(u0, u1, v0, v1);
   const top = base + h;
   b.box(u0, u1, v0, v1, base - 1.6, top + 0.55, { colour, seed, base, top: false });
@@ -296,8 +296,14 @@ function lots(random, u0, u1, v0, v1, max, out = []) {
 
 const overlaps = (a, b, gap = 0) => a[0] < b[1] + gap && a[1] > b[0] - gap && a[2] < b[3] + gap && a[3] > b[2] - gap;
 
-/** The city: walls, towers, the gate, and its houses. All in the valley's frame (u, v), absolute. */
-function buildCity(b, random) {
+/**
+ * The city: walls, towers, the gate, and its houses. All in the valley's frame (u, v), absolute. Its `look` says
+ * what it is built of (the stone of its walls, the plasters of its houses) and builds what is its own: the great
+ * house and the storehouse within (`inside`), and anything on the gate (`gate`).
+ */
+function buildCity(b, random, look) {
+  const STONE = look.stone;
+  const PLASTERS = look.plasters;
   const [cu, cv] = CITY.at;
   const [hu, hv] = CITY.half;
   const T = CITY.thick;
@@ -354,6 +360,7 @@ function buildCity(b, random) {
     const [g0, g1] = [cu - hu + T, cu - hu + T + 2.9];
     b.box(g0, g1, cv - gw, cv - gw + 0.22, base - 0.2, base + 5.5, { part: PART.WOOD, colour: WOOD, seed: 0.2, base, solid: false });
     b.box(g0, g1, cv + gw - 0.22, cv + gw, base - 0.2, base + 5.5, { part: PART.WOOD, colour: WOOD, seed: 0.4, base, solid: false });
+    look.gate?.(b, { S, cu, cv, hu, hv, gw, T, W, base });
   }
 
   // ---- inside: streets and blocks of houses ----
@@ -386,6 +393,11 @@ function buildCity(b, random) {
       }
     }
   }
+  look.inside(b, random, { S, cu, cv, hu, hv, gw, T, W });
+}
+
+/** What is Jerusalem's own within its walls: Laban's house with its court, and his treasury. */
+function labanAndTreasury(b, random, { S, cu, cv }) {
   // Laban's house: big, two storeys and more, of dressed stone below and plaster above, with a walled court
   {
     const [u0, v0, u1, v1] = IN_CITY.laban;
@@ -565,26 +577,20 @@ function buildCamp(b) {
 }
 
 /**
- * Builds every building of the story. Returns the mesh, its material's uniforms (uNight), and the boxes that block
- * the walk, each as { at: [x, y, z], half: [hx, hy, hz] } turned by TURN about y.
+ * Jerusalem as the first journey has it: pale gold stone, Laban's house and treasury within, and outside the walls
+ * Lehi's house and the brothers' tents. Its rooms: the treasury (by night) and Lehi's house (by day, where the roof
+ * keeps the sun off).
  */
-export function createCity(field) {
-  const random = mulberry(1007);
-  const b = builder();
-  buildCity(b, random);
-  buildLehiHouse(b, random);
-  buildCamp(b);
-  const uniforms = { ...field.uniforms, uNight: { value: 0 }, uRoomLamp: { value: new THREE.Vector4(0, 0, 0, 0) }, uRoom: { value: new THREE.Vector4(1, 0, 0, 0) }, uRoomShade: { value: 0 } };
-  const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: vertex, fragmentShader: fragment, uniforms, side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(b.build(), material);
-  mesh.frustumCulled = false;
-  const solids = b.solids.map(([u0, u1, v0, v1, y0, y1]) => {
-    const [x, z] = fromValley((u0 + u1) / 2, (v0 + v1) / 2);
-    return { at: [x, (y0 + y1) / 2, z], half: [(u1 - u0) / 2, (y1 - y0) / 2, (v1 - v0) / 2] };
-  });
-  // The rooms that can be walked into, each with its lamp: the treasury (by night) and Lehi's house (by day, where
-  // the roof keeps the sun off). One is lit at a time: the one the story is at.
-  const rooms = {
+export const JERUSALEM = {
+  name: 'jerusalem',
+  stone: STONE,
+  plasters: PLASTERS,
+  inside: labanAndTreasury,
+  outside(b, random) {
+    buildLehiHouse(b, random);
+    buildCamp(b);
+  },
+  rooms: {
     treasury: (() => {
       const [u0, v0, u1, v1] = IN_CITY.treasury;
       return { u: CITY.at[0] + (u0 + u1) / 2, v: CITY.at[1] + (v0 + v1) / 2, half: [(u1 - u0) / 2 - 0.85, (v1 - v0) / 2 - 0.85], up: 3.2, reach: 16, shade: 0 };
@@ -597,7 +603,29 @@ export function createCity(field) {
       reach: 9,
       shade: 0.6,
     },
-  };
+  },
+  room: 'treasury',
+};
+
+/**
+ * Builds every building of the story, as its `look` has them (Jerusalem's, unless another is given). Returns the mesh, its material's uniforms (uNight), and the boxes that block
+ * the walk, each as { at: [x, y, z], half: [hx, hy, hz] } turned by TURN about y.
+ */
+export function createCity(field, look = JERUSALEM) {
+  const random = mulberry(1007);
+  const b = builder();
+  buildCity(b, random, look);
+  look.outside(b, random);
+  const uniforms = { ...field.uniforms, uNight: { value: 0 }, uRoomLamp: { value: new THREE.Vector4(0, 0, 0, 0) }, uRoom: { value: new THREE.Vector4(1, 0, 0, 0) }, uRoomShade: { value: 0 } };
+  const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: vertex, fragmentShader: fragment, uniforms, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(b.build(), material);
+  mesh.frustumCulled = false;
+  const solids = b.solids.map(([u0, u1, v0, v1, y0, y1]) => {
+    const [x, z] = fromValley((u0 + u1) / 2, (v0 + v1) / 2);
+    return { at: [x, (y0 + y1) / 2, z], half: [(u1 - u0) / 2, (y1 - y0) / 2, (v1 - v0) / 2] };
+  });
+  // The rooms that can be walked into, each with its lamp. One is lit at a time: the one the story is at.
+  const rooms = look.rooms;
   /** Lights one of the rooms. */
   const light = (name) => {
     const r = rooms[name];
@@ -607,9 +635,8 @@ export function createCity(field) {
     uniforms.uRoom.value.set(DX, DZ, r.half[0], r.half[1]);
     uniforms.uRoomShade.value = r.shade;
   };
-  light('treasury');
-  return { mesh, uniforms, solids, light };
-
+  light(look.room);
+  return { mesh, uniforms, solids, light, look };
 }
 
 /** Adds a collider for each of the city's solids to a Rapier world. */

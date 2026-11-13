@@ -18,6 +18,7 @@ The land, sky, clouds, mountains, village, trees, stones and water are made in c
 
 - A remix of Patch's Painted valley (`blendi/painted-valley`), MIT and CC0: the painting, the grass, the sky, the wanderer and the walk are its; the hill country, the city, the story and the night are this game's.
 - Scripture: 1 Nephi 3–5 from the Book of Mormon, public domain text (Project Gutenberg eBook #17).
+- Scripture in *But If Not*: Daniel 3 from the King James Version of the Bible, public domain text (Project Gutenberg eBook #10).
 - Wind and crickets are made in code; the footsteps are Kenney's (CC0).
 - This is an independent project, not an official product of The Church of Jesus Christ of Latter-day Saints.
 

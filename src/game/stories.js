@@ -4,17 +4,28 @@
 // To release the next: write its story beside story.js, give it an entry here with `released: true`, and put a new
 // teaser after it. The teaser is the one entry with `released: false`: with a title and a ref it is named on the
 // select screen, and without them it only says that a new journey is coming.
+import * as furnace from './daniel.js';
+import { nephi } from './scripture.js';
+import { daniel } from './scripture-daniel.js';
 import { CLOTHES, PEOPLE, story } from './story.js';
 
 export const GAME = {
-  name: 'Book of Mormon Journeys',
+  name: 'Scripture Journeys',
   /** The start of every key kept in the browser. */
   save: 'bom-journeys',
 };
 
+/** The books the journeys are told from, in the order the first screen lists them. Each story names its `work`. */
+export const WORKS = [
+  { id: 'bom', name: 'Book of Mormon' },
+  { id: 'ot', name: 'Old Testament' },
+];
+
 export const STORIES = [
   {
     id: 'plates-of-brass',
+    work: 'bom',
+    /** Its number among the journeys of its book. */
     number: 1,
     title: 'I Will Go and Do',
     ref: '1 Nephi 3–4',
@@ -25,6 +36,8 @@ export const STORIES = [
     beats: story,
     people: PEOPLE,
     clothes: CLOTHES,
+    /** The book its cards quote (scripture.js). */
+    scripture: nephi,
     /** The key this story's place was kept under before there were others. */
     oldSave: 'nephi-plates:beat',
     end: {
@@ -40,7 +53,34 @@ export const STORIES = [
     },
   },
   // the teaser: what comes next week
-  { id: 'next', number: 2, title: null, ref: null, released: false },
+  { id: 'next', work: 'bom', number: 2, title: null, ref: null, released: false },
+  {
+    id: 'fiery-furnace',
+    work: 'ot',
+    number: 1,
+    title: 'But If Not',
+    ref: 'Daniel 3',
+    blurb: 'Shadrach, Meshach and Abed-nego will not bow to the image of gold, and are cast into the fire.',
+    released: true,
+    first: 'a1',
+    beats: furnace.story,
+    people: furnace.PEOPLE,
+    clothes: furnace.CLOTHES,
+    scripture: daniel,
+    /** Babylon, in place of Jerusalem (babylon.js), and its own people in place of Jerusalem's. */
+    look: furnace.LOOK,
+    town: furnace.town,
+    end: {
+      heading: 'But If Not',
+      quote: '“Our God whom we serve is able to deliver us from the burning fiery furnace, and he will deliver us out of thine hand, O king. But if not, be it known unto thee, O king, that we will not serve thy gods.”',
+      cite: 'Daniel 3:17–18',
+      talk: 'They did not know whether they would be delivered, and they trusted the Lord all the same. What if faith does not bring the miracle we hope for? How did their choice lead a king to bless God, and whom might your choices help?',
+      links: [
+        ['Daniel 3', 'https://www.churchofjesuschrist.org/study/scriptures/ot/dan/3?lang=eng'],
+        ['this week’s Come, Follow Me', 'https://www.churchofjesuschrist.org/study/manual/come-follow-me-for-home-and-church-old-testament-2026/46?lang=eng'],
+      ],
+    },
+  },
 ];
 
 /** The released story of that id, or the first if there is none. */

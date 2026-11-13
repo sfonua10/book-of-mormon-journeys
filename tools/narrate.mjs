@@ -14,6 +14,7 @@
 //   --voice <id> (or ELEVENLABS_VOICE_ID)   --model <id> (eleven_multilingual_v2)   --keep <n> credits back (300)
 //   --left <n>: suppose n credits are left (with --dry, to see what a smaller allowance would leave out)
 //   --plain: send the names as they are spelt, not as they are said (NAMES, below)
+//   --story <id>: the journey to make them for (STORIES, below): plates-of-brass unless said, or fiery-furnace
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,17 +42,38 @@ const model = flag('model', env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2');
 const format = flag('format', 'mp3_44100_64');
 const API = 'https://api.elevenlabs.io';
 
-/** The verses that carry the story: made first, whatever else there is room for. */
-const KEY = ['3:7', '3:15', '3:29', '4:1', '4:6', '4:10', '4:11', '4:12-4:13', '4:32', '4:33', '4:35', '5:8', '5:21'];
-/** How the names are said, spelt so that a voice says them so. Sent in place of the names (unless --plain). */
-const NAMES = { Nephi: 'Nee-fye', Lehi: 'Lee-hi', Laban: 'Lay-bin', Laman: 'Lay-men', Lemuel: 'Lem-yool', Zoram: 'Zo-rum', Sariah: 'Suh-rye-uh' };
+/**
+ * The journeys that can be read aloud. For each: the file its story is written in, where its verses are kept (and
+ * what that file calls them), the verses that carry the story (made first, whatever else there is room for), and how
+ * its names are said, spelt so that a voice says them so (sent in place of the names, unless --plain).
+ */
+const STORIES = {
+  'plates-of-brass': {
+    file: 'src/game/story.js',
+    scripture: ['src/game/scripture.js', 'nephi'],
+    key: ['3:7', '3:15', '3:29', '4:1', '4:6', '4:10', '4:11', '4:12-4:13', '4:32', '4:33', '4:35', '5:8', '5:21'],
+    names: { Nephi: 'Nee-fye', Lehi: 'Lee-hi', Laban: 'Lay-bin', Laman: 'Lay-men', Lemuel: 'Lem-yool', Zoram: 'Zo-rum', Sariah: 'Suh-rye-uh' },
+  },
+  'fiery-furnace': {
+    file: 'src/game/daniel.js',
+    scripture: ['src/game/scripture-daniel.js', 'daniel'],
+    key: ['3:1', '3:6', '3:12', '3:15', '3:16', '3:17', '3:18', '3:25', '3:27', '3:28'],
+    names: { Nebuchadnezzar: 'Neb-uh-kud-nezz-er', Shadrach: 'Shay-drak', Meshach: 'Mee-shak', Abednego: 'Uh-bed-nih-go', Chaldeans: 'Kal-dee-uns', Dura: 'Doo-ruh' },
+  },
+};
+const chosenStory = STORIES[flag('story', 'plates-of-brass')];
+if (!chosenStory) {
+  console.error(`No such journey: ${flag('story')}. There are: ${Object.keys(STORIES).join(', ')}.`);
+  process.exit(1);
+}
+const { key: KEY, names: NAMES } = chosenStory;
 
 const slug = (ref) => ref.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const spoken = (text) => (has('plain') ? text : text.replace(new RegExp(`\\b(${Object.keys(NAMES).join('|')})\\b`, 'g'), (n) => NAMES[n]));
 
-// the cards, in the story's order: every verse or run of verses story.js quotes
-const { verses, reference } = await import(path.join(here, 'src/game/scripture.js'));
-const story = fs.readFileSync(path.join(here, 'src/game/story.js'), 'utf8');
+// the cards, in the story's order: every verse or run of verses the story quotes
+const { verses, reference } = (await import(path.join(here, chosenStory.scripture[0])))[chosenStory.scripture[1]];
+const story = fs.readFileSync(path.join(here, chosenStory.file), 'utf8');
 const cards = [];
 for (const m of story.matchAll(/verses?\('(\d+:\d+)'(?:, '(\d+:\d+)')?/g)) {
   const first = m[1];
@@ -146,7 +168,7 @@ try {
   for (const c of rest) (dropped.has(c) ? left_out : chosen).push(c);
   cost = chosen.reduce((n, c) => n + c.text.length, 0);
   if (cost > budget) throw new Error(`Even the key verses (${cost} characters) are more than is left (${budget}).`);
-  console.log(`Making ${chosen.length} (${cost} characters)${left_out.length ? `; leaving ${left_out.length} for next time: ${left_out.map((c) => c.ref.replace('1 Nephi ', '')).join(', ')}` : ''}.`);
+  console.log(`Making ${chosen.length} (${cost} characters)${left_out.length ? `; leaving ${left_out.length} for next time: ${left_out.map((c) => c.ref.replace(/^.* /, '')).join(', ')}` : ''}.`);
   if (has('dry') || !KEY_) process.exit(0);
   if (!voice) throw new Error('Say which voice: --voice <id> (see --voices).');
 

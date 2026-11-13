@@ -198,6 +198,27 @@ export function createMusic(sounds) {
       play(c, string(c, 'D4'), c.currentTime + 0.02, 0.32);
       play(c, string(c, 'A4'), c.currentTime + 0.17, 0.26);
     },
+    /**
+     * "The sound of the cornet, flute, harp, sackbut, psaltery, dulcimer, and all kinds of musick" (Daniel 3:5): a
+     * loud flourish of many strings over the drum, for about `seconds`. (stop() ends it.)
+     */
+    fanfare(seconds = 10) {
+      const c = ctx();
+      if (!c) return;
+      if (!made) make(c);
+      const run = ['D4', 'A4', 'D5', 'A4', 'Fs4', 'A4', 'D5', 'Fs5', 'A5', 'Fs5', 'D5', 'A4'];
+      const step = 0.2;
+      const from = c.currentTime + 0.05;
+      for (let i = 0; i * step < seconds; i++) {
+        const at = from + i * step;
+        const fade = Math.min(1, (seconds - i * step) / 1.5);
+        play(c, string(c, run[i % run.length]), at, 0.42 * fade, { pan: i % 2 ? 0.3 : -0.3, keep: true });
+        if (i % 4 === 0) play(c, string(c, i % 8 === 0 ? 'D3' : 'A3'), at, 0.4 * fade, { keep: true });
+        if (i % 8 === 0) play(c, string(c, i % 16 === 0 ? 'D2' : 'A2'), at, 0.45 * fade, { keep: true });
+        if (i % 4 === 0) play(c, dum, at, 0.5 * fade, { keep: true });
+        if (i % 4 === 2) play(c, tek, at, 0.3 * fade, { pan: 0.2, keep: true });
+      }
+    },
     /** The tune of the return, once through, over a string held low. */
     theme() {
       const c = ctx();

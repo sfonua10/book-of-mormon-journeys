@@ -95,20 +95,28 @@ export const VERSES = {
   '5:22': "Wherefore, it was wisdom in the Lord that we should carry them with us, as we journeyed in the wilderness towards the land of promise.",
 };
 
-/** The text of one verse, or of a run of them from `first` to `last` in the same chapter, joined with spaces. */
-export function verses(first, last = first) {
-  const [ch, a] = first.split(':').map(Number);
-  const b = Number(last.split(':')[1]);
-  const out = [];
-  for (let v = a; v <= b; v++) {
-    const text = VERSES[`${ch}:${v}`];
-    if (!text) throw new Error(`no verse 1 Nephi ${ch}:${v}`);
-    out.push(text);
-  }
-  return out.join(' ');
+/**
+ * A book's verses, to quote from: `verses('3:7')` or `verses('4:11', '4:12')` is the text of one verse or of a run of
+ * them in the same chapter, joined with spaces; `reference` is "1 Nephi 3:7" or "1 Nephi 4:11–12". Each journey has
+ * its own (stories.js), of the book it is told from.
+ */
+export function scripture(book, table) {
+  return {
+    book,
+    verses(first, last = first) {
+      const [ch, a] = first.split(':').map(Number);
+      const b = Number(last.split(':')[1]);
+      const out = [];
+      for (let v = a; v <= b; v++) {
+        const text = table[`${ch}:${v}`];
+        if (!text) throw new Error(`no verse ${book} ${ch}:${v}`);
+        out.push(text);
+      }
+      return out.join(' ');
+    },
+    reference: (first, last = first) => (first === last ? `${book} ${first}` : `${book} ${first}–${last.split(':')[1]}`),
+  };
 }
 
-/** "1 Nephi 3:7" or "1 Nephi 4:11–12". */
-export function reference(first, last = first) {
-  return first === last ? `1 Nephi ${first}` : `1 Nephi ${first}–${last.split(':')[1]}`;
-}
+export const nephi = scripture('1 Nephi', VERSES);
+export const { verses, reference } = nephi;

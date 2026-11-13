@@ -127,6 +127,10 @@ const CSS = /* css */ `
 .g-screen .journeys button { margin: 0; white-space: nowrap; }
 .g-screen .journeys .go button + button { border: 0; padding: 2px 6px; font-size: 14px; opacity: 0.75; text-decoration: underline; }
 .g-screen .journeys .soon { border-style: dashed; opacity: 0.5; }
+.g-screen .ask { margin: 14px 0 0; font-style: italic; opacity: 0.75; }
+.g-screen .shelf { margin: 16px 0 -10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.g-screen .shelf span { font-size: 20px; color: #fff; }
+.g-screen .shelf button { margin: 0; border: 0; padding: 6px 2px; font-size: 15px; opacity: 0.8; }
 @media (max-width: 600px) {
   .g-screen .journeys li { grid-template-columns: 1fr; }
   .g-screen .journeys .go { justify-items: start; grid-auto-flow: column; justify-content: start; align-items: center; }
@@ -238,11 +242,12 @@ export function createUI({ touch = false } = {}) {
       chapter.classList.add('on');
     },
     /**
-     * The first screen: the journeys of the game, to choose from. `list` is [{ id, number, title, ref, blurb,
+     * The first screen, in two steps: the books of scripture (`works`, [{ id, name }]) to choose from, then the
+     * journeys of the one chosen. `at` is a book's id to begin at its journeys. `list` is [{ id, number, title, ref, blurb,
      * released, done, resume }]: one that is released can be begun (or gone on with, from the act `resume` names);
      * one that is not is only told of. Resolves with { id, go: 'begin' | 'continue' } when a button is pressed.
      */
-    stories({ name, list }) {
+    stories({ name, works, list, at = null }) {
       const item = (s) => {
         const no = `Journey ${esc(s.number)}`;
         if (!s.released) {
@@ -266,25 +271,53 @@ export function createUI({ touch = false } = {}) {
           <div class="go">${go}</div>
         </li>`;
       };
-      title.innerHTML = `<div class="box">
-        <h1>${esc(name)}</h1>
-        <ul class="journeys">${list.map(item).join('')}</ul>
-      </div>`;
+      // a book of scripture: how many journeys it has, and where they are told from
+      const book = (w) => {
+        const ready = list.filter((s) => s.work === w.id && s.released);
+        const count = ready.length === 1 ? '1 journey' : `${ready.length} journeys`;
+        return `<li class="open">
+          <div class="what">
+            <div class="no">${count}</div>
+            <h2>${esc(w.name)}</h2>
+            <div class="about">${ready.map((s) => esc(s.ref)).join(' · ')}</div>
+          </div>
+          <div class="go"><button data-work="${esc(w.id)}">Open</button></div>
+        </li>`;
+      };
+      // (only the books that have a journey to play are listed)
+      const shelf = works.filter((w) => list.some((s) => s.work === w.id && s.released));
       title.classList.add('on');
       return new Promise((done) => {
-        for (const b of title.querySelectorAll('button')) {
-          b.addEventListener('click', () => {
-            title.classList.remove('on');
-            done({ id: b.dataset.id, go: b.dataset.go });
-          });
-        }
-        // (a journey's whole row can be pressed, for its first button)
-        for (const li of title.querySelectorAll('li.open')) {
-          li.addEventListener('click', (e) => {
-            if (!e.target.closest('button')) li.querySelector('button').click();
-          });
-        }
-        title.querySelector('button')?.focus();
+        /** Shows the books (work: null), or the journeys of one of them. */
+        const show = (work) => {
+          const of = shelf.find((w) => w.id === work);
+          title.innerHTML = of
+            ? `<div class="box">
+                <h1>${esc(name)}</h1>
+                <div class="shelf"><button data-work="" class="plain">‹ All books</button><span>${esc(of.name)}</span></div>
+                <ul class="journeys">${list.filter((s) => s.work === of.id).map(item).join('')}</ul>
+              </div>`
+            : `<div class="box">
+                <h1>${esc(name)}</h1>
+                <p class="ask">Choose a book of scripture</p>
+                <ul class="journeys">${shelf.map(book).join('')}</ul>
+              </div>`;
+          for (const b of title.querySelectorAll('button')) {
+            b.addEventListener('click', () => {
+              if (b.dataset.work !== undefined) return show(b.dataset.work || null);
+              title.classList.remove('on');
+              done({ id: b.dataset.id, go: b.dataset.go });
+            });
+          }
+          // (a whole row can be pressed, for its first button)
+          for (const li of title.querySelectorAll('li.open')) {
+            li.addEventListener('click', (e) => {
+              if (!e.target.closest('button')) li.querySelector('button').click();
+            });
+          }
+          title.querySelector('li button')?.focus();
+        };
+        show(at);
       });
     },
     hideTitle() {

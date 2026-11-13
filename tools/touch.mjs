@@ -57,7 +57,9 @@ const check = (ok, what) => {
 
 check((await state()).touch, 'the page knows it is played by touch');
 await page.screenshot({ path: join(out, '1-journeys.png') });
-await page.tap('#g-title button');
+await page.tap('#g-title button[data-work="bom"]');
+await page.screenshot({ path: join(out, '1b-book.png') });
+await page.tap('#g-title button[data-go]');
 await ticks(60);
 // tap through the cards the journey opens with
 let read = 0;

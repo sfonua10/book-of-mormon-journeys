@@ -25,6 +25,35 @@ export function cloneMan(src) {
 
 const angleWrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
+// Falling down to worship: the body sinks to its knees and bends forward to the ground. Every bone is turned about
+// the one line across the body (from his left to his right), so the turns can be worked out from how the bones lie
+// before any is turned: a turn about that line leaves the line where it was.
+const across = new THREE.Vector3();
+const local = new THREE.Vector3();
+const parentTurn = new THREE.Quaternion();
+const turn = new THREE.Quaternion();
+// [bone, degrees]: more than 0 leans what stands up forward (and swings what hangs down back)
+const BOW = [
+  ['thigh_l', -80], ['thigh_r', -80],
+  ['calf_l', 165], ['calf_r', 165],
+  ['spine_01', 36], ['spine_02', 32], ['spine_03', 28], ['neck_01', 10],
+  ['upperarm_l', -150], ['upperarm_r', -150],
+];
+/** How far the body sinks (metres) when it is on its knees. */
+const KNEEL = 0.8;
+function bowDown(npc, k) {
+  const b = npc.man.bones;
+  across.set(Math.cos(npc.yaw), 0, -Math.sin(npc.yaw));
+  npc.man.object.position.y -= KNEEL * k;
+  for (const [name, degrees] of BOW) {
+    const bone = b[name];
+    if (!bone?.parent) continue;
+    bone.parent.getWorldQuaternion(parentTurn);
+    local.copy(across).applyQuaternion(parentTurn.invert());
+    bone.quaternion.premultiply(turn.setFromAxisAngle(local, (degrees * Math.PI * k) / 180));
+  }
+}
+
 /**
  * @param field the meadow (its uniforms light them)
  * @param base a loaded man, never dressed: each one is a clone of it
@@ -249,6 +278,12 @@ export function createCast(field, base, world) {
       }
     }
     if (far) return;
+    // One who has fallen down and lies still is as he was the frame before: nothing of him is worked out again
+    // (a crowd near at hand is much of a frame's work on a phone).
+    if (npc.bow === 1 && npc.bowK > 0.996 && npc.speed < 0.05 && !snap && !npc.lying && !npc.holds) {
+      o.position.y -= KNEEL * npc.bowK;
+      return;
+    }
     const s = npc.speed;
     const W = npc.weights;
     const goal = s < 0.25 ? { Idle: 1, Walk: 0, Jog: 0, Run: 0 } : s < 2.2 ? { Idle: 0, Walk: 1, Jog: 0, Run: 0 } : s < 4.2 ? { Idle: 0, Walk: 0, Jog: 1, Run: 0 } : { Idle: 0, Walk: 0, Jog: 0, Run: 1 };
@@ -279,6 +314,9 @@ export function createCast(field, base, world) {
       b.lowerarm_l.rotateX(npc.open * 1.1);
       b.lowerarm_r.rotateX(npc.open * 1.1);
     }
+    // one who has fallen down to worship (`bow`, 0 to 1): on his knees, bent to the ground, his hands before him
+    npc.bowK = (npc.bowK ?? 0) + ((npc.bow ?? 0) - (npc.bowK ?? 0)) * (snap ? 1 : Math.min(1, dt * 2.6));
+    if (npc.bowK > 0.01) bowDown(npc, npc.bowK);
     o.updateMatrixWorld(true);
     // one who carries something has both hands to it
     npc.held = npc.holds ?? npc.held;

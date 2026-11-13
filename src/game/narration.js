@@ -24,7 +24,7 @@ export const slug = (ref) => ref.toLowerCase().replace(/[^a-z0-9]+/g, '-').repla
  * @param options.base where the recordings are
  * @param options.note says a word at the top of the screen (main.js, note)
  */
-export function createNarration(sounds, { base = './audio/narration/', note = null } = {}) {
+export function createNarration(sounds, { base = './audio/narration/', note = null, book = null } = {}) {
   const have = new Set();
   const buffers = new Map(); // slug -> Promise<AudioBuffer | null>
   let on = true;
@@ -76,15 +76,24 @@ export function createNarration(sounds, { base = './audio/narration/', note = nu
     }
     return buffers.get(key);
   };
-  // The recordings in the order of the account (chapter, then verse), which is nearly the order they are read in.
+  // The recordings in the order of the account (book, then chapter, then verse), which is nearly the order they are
+  // read in. A recording is named for its reference: "1-nephi-4-11-12", "daniel-3-17".
   let order = [];
-  const place = (key) => key.split('-').slice(2).map(Number);
-  /** Asks for the recording at `key` (if it is not had yet) and the `more` after it in the account. */
+  const place = (key) => {
+    const parts = key.split('-');
+    let n = parts.length;
+    while (n > 0 && /^\d+$/.test(parts[n - 1])) n--;
+    // (a book's own number comes first, as in "1-nephi": only the numbers after its name are chapter and verse)
+    if (n === 0) n = 1;
+    return { book: parts.slice(0, n).join('-'), at: parts.slice(n).map(Number) };
+  };
+  /** Asks for the recording at `key` (if it is not had yet) and the `more` after it in the same book. */
   const ahead = (key, more = 2) => {
     if (!on) return;
     const i = order.indexOf(key);
     if (i < 0) return;
-    for (const k of order.slice(i, i + 1 + more)) if (!buffers.has(k)) wired(k);
+    const { book } = place(key);
+    for (const k of order.slice(i, i + 1 + more)) if (place(k).book === book && !buffers.has(k)) wired(k);
   };
 
   function stop(fade = 0.12) {
@@ -124,11 +133,11 @@ export function createNarration(sounds, { base = './audio/narration/', note = nu
     async load() {
       try {
         const list = await (await fetch(`${base}manifest.json`)).json();
-        for (const key of Object.keys(list)) have.add(key);
+        // (only the recordings of this journey's book, if one is named: a journey with none shows no voice button)
+        for (const key of Object.keys(list)) if (!book || place(key).book === slug(book)) have.add(key);
         order = [...have].sort((a, b) => {
-          const [ca, va] = place(a);
-          const [cb, vb] = place(b);
-          return ca - cb || va - vb;
+          const [pa, pb] = [place(a), place(b)];
+          return pa.book.localeCompare(pb.book) || pa.at[0] - pb.at[0] || pa.at[1] - pb.at[1];
         });
       } catch {
         // (none)

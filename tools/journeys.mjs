@@ -63,6 +63,8 @@ const list = () =>
       buttons: [...li.querySelectorAll('button')].map((b) => b.textContent),
     })),
   }));
+/** Opens a book on the first screen. */
+const book = (id) => page.click(`#g-title button[data-work="${id}"]`);
 const keys = () => page.evaluate(() => Object.fromEntries(Object.entries(localStorage)));
 const ticks = (n) =>
   page.evaluate(async (count) => {
@@ -77,8 +79,20 @@ await open();
 await page.evaluate(() => localStorage.clear());
 await open();
 let l = await list();
-check('the list is the first screen', l.on === true && l.heading === 'Book of Mormon Journeys', l.heading);
-check('the page is named for the game', (await page.title()) === 'Book of Mormon Journeys', await page.title());
+check('the books are the first screen', l.on === true && l.heading === 'Scripture Journeys', l.heading);
+check('the page is named for the game', (await page.title()) === 'Scripture Journeys', await page.title());
+check('two books are listed, each to open', l.items.map((i) => `${i.title}:${i.buttons.join('|')}`).join(', ') === 'Book of Mormon:Open, Old Testament:Open', l.items);
+if (shots) await page.screenshot({ path: join(out, '0-books.png') });
+// the Old Testament has the furnace; back, and the Book of Mormon has the plates and the one to come
+await book('ot');
+l = await list();
+check('the Old Testament lists its journey', l.items.length === 1 && l.items[0].title === 'But If Not' && l.items[0].buttons.join('|') === 'Begin', l.items);
+if (shots) await page.screenshot({ path: join(out, '0-old-testament.png') });
+await page.click('#g-title .shelf button');
+l = await list();
+check('and goes back to the books', l.items.length === 2 && l.items[0].title === 'Book of Mormon', l.items);
+await book('bom');
+l = await list();
 check('two journeys are listed', l.items.length === 2, l.items.length);
 check('the first can be begun', l.items[0]?.title === 'I Will Go and Do' && l.items[0].buttons.join('|') === 'Begin', l.items[0]);
 check('the next is coming, with no button', l.items[1]?.soon && l.items[1].buttons.length === 0 && /Coming next week/.test(l.items[1].no), l.items[1]);
@@ -87,6 +101,7 @@ if (shots) await page.screenshot({ path: join(out, '1-list.png') });
 // 2. a place kept under the old key is brought over, and can be gone on from
 await page.evaluate(() => localStorage.setItem('nephi-plates:beat', 'a2'));
 await open();
+await book('bom');
 l = await list();
 let k = await keys();
 check('the old place is offered', /^Continue · /.test(l.items[0]?.buttons[0] ?? '') && l.items[0].buttons[1] === 'Start over', l.items[0]?.buttons);
@@ -98,6 +113,7 @@ check('Continue goes on from there', (await page.evaluate(() => window.__tg.dire
 
 // 3. Start over begins at the beginning
 await open();
+await book('bom');
 await page.click('#g-title button[data-go="begin"]');
 await ticks(5);
 check('Start over begins at the first beat', (await page.evaluate(() => window.__tg.director.beat)) === 'a1', await page.evaluate(() => window.__tg.director.beat));
@@ -124,7 +140,9 @@ if (shots) await page.screenshot({ path: join(out, '3-end.png') });
 await Promise.all([page.waitForNavigation(), page.click('#g-end button[data-go="back"]')]);
 await ready();
 l = await list();
-check('Back to journeys shows the list', l.on === true && !/[?&](auto|beat|story|go)\b/.test(page.url()), page.url());
+check('Back to journeys shows the books', l.on === true && l.items[0]?.title === 'Book of Mormon' && !/[?&](auto|beat|story|go)\b/.test(page.url()), page.url());
+await book('bom');
+l = await list();
 check('with the journey ticked, to play again', /Finished/.test(l.items[0]?.no ?? '') && l.items[0].buttons.join('|') === 'Play again', l.items[0]);
 if (shots) await page.screenshot({ path: join(out, '4-finished.png') });
 
@@ -132,6 +150,9 @@ if (shots) await page.screenshot({ path: join(out, '4-finished.png') });
 await open('story=nonsense');
 l = await list();
 check('an unknown ?story shows the list', l.on === true && l.items.length === 2, l);
+await open('story=fiery-furnace');
+l = await list();
+check("a journey asked for by name opens at its book's journeys", l.on === true && l.items.length === 1 && l.items[0].title === 'But If Not', l);
 await open('story=plates-of-brass&go=begin');
 await ticks(5);
 const went = await page.evaluate(() => ({ beat: window.__tg.director.beat, list: document.querySelector('#g-title')?.classList.contains('on') }));

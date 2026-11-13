@@ -27,8 +27,7 @@ import { createMusic } from '../game/music.js';
 import { createNarration } from '../game/narration.js';
 import { createTown, TOWN_CLOTHES, TOWNSFOLK } from '../game/town.js';
 import { cloneMan, createCast } from '../game/npc.js';
-import { reference, verses } from '../game/scripture.js';
-import { GAME, keeper, STORIES, storyById } from '../game/stories.js';
+import { GAME, keeper, STORIES, storyById, WORKS } from '../game/stories.js';
 import { createUI } from '../game/ui.js';
 import { createTouch, wantsTouch } from '../game/touch.js';
 import { loadMan } from '../figure/man.js';
@@ -178,7 +177,8 @@ scene.add(field.group);
 // (the man is the biggest thing to fetch: asked for now, he arrives while the rest is made. Nephi and everyone else
 // in the story are copies of him, each dressed in his own colours.)
 const manComing = loadMan({ base: './figure/' });
-const wandererComing = manComing.then((man) => createWanderer(field, null, {}, { man: cloneMan(man) }));
+// (he is dressed as the journey has him: Nephi, unless it brings clothes for its own `player`)
+const wandererComing = manComing.then((man) => createWanderer(field, null, STORY_CLOTHES.player ?? {}, { man: cloneMan(man) }));
 const physicsComing = RAPIER.init();
 mark('field');
 field.uniforms.tFloor.value = createFloor(renderer, FLOOR_SIZE, (await floorJob).pixels);
@@ -219,7 +219,8 @@ const trees = createTrees(field, { cards: quality === 'low' ? 0.6 : quality === 
 mark('trees');
 const farWoods = createFarWoods(field);
 mark('farWoods');
-const city = createCity(field);
+// (the city as this journey has it: Jerusalem, unless it brings its own look)
+const city = createCity(field, journey.look);
 mark('city');
 scene.add(sky.mesh, createHorizon(field, EXTENT / 2), trees.group, farWoods.group, city.mesh);
 // the finish: the frame laid in as brush marks. ?paint=0 for none; P turns it on and off.
@@ -402,8 +403,8 @@ const physics = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   }
   // the city's walls and houses, the house in the land of inheritance, the tents
   addCityColliders(RAPIER, physics, city.solids);
-  // the treasury's door, shut until the keeper of the keys opens it (4:20)
-  {
+  // the treasury's door, shut until the keeper of the keys opens it (4:20): in Jerusalem, where there is one
+  if (city.look.name === 'jerusalem') {
     const [x, z] = fromValley(CITY.at[0] + IN_CITY.treasuryDoor[0], CITY.at[1] + IN_CITY.treasury[3] - 0.45);
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), CITY_TURN);
     treasuryDoor = { at: [x, z], collider: physics.createCollider(RAPIER.ColliderDesc.cuboid(1.1, 2, 0.4).setTranslation(x, field.heightAt(x, z) + 1.6, z).setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })) };
@@ -788,7 +789,7 @@ mark('warm');
 
 // ---- the story -----------------------------------------------------------------------------------------------
 const ui = createUI({ touch });
-const narration = createNarration(sounds, { note });
+const narration = createNarration(sounds, { note, book: journey.scripture.book });
 // (the list of recordings is asked for once the sounds are ready, since they are played through them)
 Promise.resolve(soundsReady).then(() => narration.load());
 if (touch) createTouch({ canvas, input, ui, press: () => director?.press(), tap: () => director?.tap(), wake: () => sounds.start(), mouse: params.has('touch') });
@@ -804,8 +805,9 @@ const g = {
   music,
   /** Whether the page was opened with ?name (a test asking for something). */
   flag: (name) => params.has(name),
-  verses,
-  reference,
+  // (the journey's own book: stories.js)
+  verses: journey.scripture.verses,
+  reference: journey.scripture.reference,
   P: (u, v) => fromValley(u, v),
   C: (cu, cv) => fromValley(CITY.at[0] + cu, CITY.at[1] + cv),
   auto: params.has('auto'),
@@ -849,6 +851,8 @@ const g = {
   },
   /** Opens or shuts the treasury's door. */
   door(open) {
+    // (a city with no treasury has no door to it)
+    if (!treasuryDoor) return;
     treasuryDoor.collider.setEnabled(!open);
     if (open) props.hide('door');
     else props.show('door', treasuryDoor.at);
@@ -857,9 +861,9 @@ const g = {
   room(name) {
     city.light(name);
   },
-  /** Nephi's own clothes, or Laban's (4:19). */
+  /** His own clothes, or another's of the story by name (Laban's, 4:19). */
   dress(who) {
-    wanderer.dress(who === 'laban' ? STORY_CLOTHES.laban : CLOTHES);
+    wanderer.dress(STORY_CLOTHES[who] ?? STORY_CLOTHES.player ?? CLOTHES);
   },
   /** A fixed view: from [x, z, metres above the ground] to [x, z, metres above]; null to give the eye back. */
   view(v) {
@@ -910,7 +914,8 @@ const g = {
     return !!director?.frozen;
   },
 };
-g.town = createTown(g);
+// (the people of the city, as the journey has them: Jerusalem's, unless it brings its own)
+g.town = journey.town ? journey.town(g) : createTown(g);
 guidance = createGuidance(g, ui);
 director = createDirector(journey.beats(g), ui, g, { keep: keeper(journey), auto: g.auto, autoRead: params.has('autoread') ? Number(params.get('autoread')) : 0.15 });
 
@@ -1006,6 +1011,9 @@ function openJourney(id, go) {
       document.body.classList.add('menu');
       pick = await ui.stories({
         name: GAME.name,
+        works: WORKS,
+        // (asked for by name, as on coming back from a journey: its book's journeys are shown)
+        at: params.has('story') ? journey.work : null,
         list: STORIES.map((s) => {
           const kept = s.released ? keeper(s) : null;
           // (this page's journey is asked of its director, which knows its beats: a place it has no beat for is none)
