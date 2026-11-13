@@ -5,10 +5,18 @@
 //   - the angel (3:29): one bright chord, held while he stands there, gone the moment he is
 //   - Laban in the street (4:7): his breathing, and nothing else
 //   - the tent of their father (5:7): the one tune, on a lyre
+// And for Daniel 3, "the sound of the cornet, flute, harp, sackbut, psaltery, dulcimer, and all kinds of musick"
+// (3:5): each enters in turn, in the verse's order, playing the one tune in its own way (consort, below). What each
+// instrument was is a guess (the README says whose): a horn; a pipe; a lyre; a small triangular harp (the footnote's
+// "triangular stringed instrument"); a psaltery, plucked; a bagpipe (the footnote's word; others say a drum); and
+// then "all kinds", with the frame drum under them. Then, on the way to the furnace, one still chord, held.
 // It plays through the valley's sounds (sounds.js): where they have no sound, neither has this.
 
-/** A plucked string (Karplus and Strong's): a burst of noise going round a loop as long as the note, wearing away. */
-function makePluck(ctx, hz, seconds = 3.2) {
+/**
+ * A plucked string (Karplus and Strong's): a burst of noise going round a loop as long as the note, wearing away.
+ * `keep` is how much of each turn round the loop is kept: less is a duller, shorter string.
+ */
+function makePluck(ctx, hz, seconds = 3.2, keep = 0.4985) {
   const rate = ctx.sampleRate;
   const n = Math.floor(seconds * rate);
   const buffer = ctx.createBuffer(1, n, rate);
@@ -25,7 +33,7 @@ function makePluck(ctx, hz, seconds = 3.2) {
   for (let i = 0; i < n; i++) {
     const next = (at + 1) % period;
     data[i] = ring[at];
-    ring[at] = (ring[at] + ring[next]) * 0.4985;
+    ring[at] = (ring[at] + ring[next]) * keep;
     at = next;
   }
   // its last third fades to nothing
@@ -76,7 +84,7 @@ function makeBreath(ctx, seconds = 4.4) {
 }
 
 // D, in the old way of tuning a lyre: five notes to the octave (D E F♯ A B), which cannot sound wrong together.
-const HZ = { D2: 73.42, A2: 110, D3: 146.83, A3: 220, B3: 246.94, D4: 293.66, E4: 329.63, Fs4: 369.99, A4: 440, B4: 493.88, D5: 587.33, Fs5: 739.99, A5: 880 };
+const HZ = { D2: 73.42, A2: 110, D3: 146.83, A3: 220, B3: 246.94, D4: 293.66, E4: 329.63, Fs4: 369.99, A4: 440, B4: 493.88, D5: 587.33, E5: 659.25, Fs5: 739.99, A5: 880, B5: 987.77, D6: 1174.66 };
 // The tune of the return (its own, written for this): [note, beats], in four phrases. The last comes home to D.
 const TUNE = [
   ['A3', 1], ['D4', 1], ['E4', 1], ['Fs4', 2], ['E4', 1], ['D4', 1], ['B3', 2], ['A3', 2],
@@ -85,6 +93,12 @@ const TUNE = [
   ['E4', 1], ['D4', 1], ['B3', 1], ['D4', 2], ['A3', 1], ['D4', 5],
 ];
 const BEAT = 0.62;
+
+// The consort's tune (its own, written for this): sixteen steps, a note or a rest (null) on each, round and round.
+const CONSORT = ['D4', null, 'Fs4', 'A4', 'B4', null, 'A4', 'Fs4', 'E4', null, 'Fs4', 'E4', 'D4', null, 'A3', null];
+const STEP = 0.26;
+/** The instruments, in the order 3:5 names them. */
+export const INSTRUMENTS = ['cornet', 'flute', 'harp', 'sackbut', 'psaltery', 'dulcimer', 'all'];
 
 /**
  * @param sounds createSounds() (sounds.js): its clock and its way out are used
@@ -101,6 +115,11 @@ export function createMusic(sounds) {
   let beatCount = 0;
   let playing = [];
   let out = null;
+  // the consort: which instruments are playing, and where its tune has got to
+  const band = new Set();
+  let nextStep = 0;
+  let stepCount = 0;
+  let drone = null;
 
   const ctx = () => {
     const c = sounds.context;
@@ -151,6 +170,24 @@ export function createMusic(sounds) {
     breath.start();
     dum = makeDrum(c, true);
     tek = makeDrum(c, false);
+    // the bagpipe's drones: a low D and the A over it, reedy, held while it plays
+    drone = hold('drone', 2, 3);
+    const reed = c.createBiquadFilter();
+    reed.type = 'bandpass';
+    reed.frequency.value = 700;
+    reed.Q.value = 0.8;
+    reed.connect(drone);
+    for (const [hz, loud] of [[HZ.D3, 0.1], [HZ.A3, 0.07], [HZ.D2, 0.08]]) {
+      const o = c.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = hz;
+      const g = c.createGain();
+      g.gain.value = loud;
+      o.connect(g).connect(reed);
+      o.start();
+    }
+    // a still chord, held: on the way to the furnace
+    tones(hold('still', 0.5, 2), [[HZ.D3, 0.4], [HZ.A3, 0.3], [HZ.D4, 0.22], [HZ.Fs4, 0.14], [HZ.A4, 0.08]]);
     for (const [name, level] of Object.entries(wanted)) held[name].want = level;
   }
 
@@ -167,9 +204,64 @@ export function createMusic(sounds) {
     if (keep) playing.push(source);
     return source;
   }
-  function string(c, note) {
-    if (!plucks.has(note)) plucks.set(note, makePluck(c, HZ[note]));
-    return plucks.get(note);
+  function string(c, note, kind = '') {
+    const key = note + kind;
+    // (a psaltery's strings are bright and ring on; a small harp's are short)
+    if (!plucks.has(key)) plucks.set(key, makePluck(c, HZ[note], kind === 'bright' ? 3.6 : kind === 'short' ? 1.4 : 3.2, kind === 'bright' ? 0.4995 : kind === 'short' ? 0.496 : 0.4985));
+    return plucks.get(key);
+  }
+  /** One note blown or bowed: an oscillator through a filter, swelling in and dying away; `wobble` is vibrato. */
+  function blow(c, type, hz, when, length, loud, cutoff, wobble = 0, attack = 0.06) {
+    const o = c.createOscillator();
+    o.type = type;
+    o.frequency.value = hz;
+    if (wobble) {
+      const lfo = c.createOscillator();
+      lfo.frequency.value = 5.2;
+      const depth = c.createGain();
+      depth.gain.value = hz * wobble;
+      lfo.connect(depth).connect(o.frequency);
+      lfo.start(when);
+      lfo.stop(when + length + 0.4);
+      playing.push(lfo);
+    }
+    const f = c.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = cutoff;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, when);
+    g.gain.linearRampToValueAtTime(loud, when + attack);
+    g.gain.setValueAtTime(loud, when + Math.max(attack, length - 0.12));
+    g.gain.linearRampToValueAtTime(0, when + length + 0.25);
+    o.connect(f).connect(g).connect(out);
+    o.start(when);
+    o.stop(when + length + 0.4);
+    playing.push(o);
+  }
+  /** Each instrument's part on one step of the tune, at `when`. */
+  function consortStep(c, i, when) {
+    const note = CONSORT[i % CONSORT.length];
+    const all = band.has('all');
+    const up = (n, k = 1) => (n ? HZ[n] * k : 0);
+    // the horn: the tune's first note and its fifth, long, every half round
+    if (band.has('cornet') && i % 8 === 0) blow(c, 'sawtooth', i % 16 === 0 ? HZ.D4 : HZ.A3, when, STEP * 5, 0.07, 900, 0.004, 0.12);
+    // the pipe: the tune itself, an octave up, breathy
+    if (band.has('flute') && note) blow(c, 'triangle', up(note, 2), when, STEP * 0.9, 0.06, 3000, 0.006, 0.03);
+    // the lyre: the tune, plucked
+    if (band.has('harp') && note) play(c, string(c, note), when, 0.32, { pan: -0.25, keep: true });
+    // the small harp: a high answer on the off-steps
+    if (band.has('sackbut') && i % 2 === 1) play(c, string(c, ['A4', 'D5', 'Fs5', 'E5'][(i >> 1) % 4], 'short'), when, 0.22, { pan: 0.35, keep: true });
+    // the psaltery: each note struck twice, bright
+    if (band.has('psaltery') && note) {
+      play(c, string(c, note, 'bright'), when, 0.18, { pan: 0.15, keep: true });
+      play(c, string(c, note, 'bright'), when + STEP / 2, 0.12, { pan: 0.15, keep: true });
+    }
+    // the bagpipe: its chanter plays the tune over the drones
+    if (band.has('dulcimer') && note) blow(c, 'square', up(note), when, STEP * 0.95, 0.035, 1600, 0, 0.02);
+    // and all kinds: the frame drum, and the lyre's low strings
+    if (all && i % 4 === 0) play(c, dum, when, 0.5, { keep: true });
+    if (all && i % 4 === 2) play(c, tek, when, 0.3, { pan: 0.2, keep: true });
+    if (all && i % 8 === 0) play(c, string(c, i % 16 === 0 ? 'D2' : 'A2'), when, 0.45, { keep: true });
   }
   const set = (name, level) => {
     if (held[name]) held[name].want = level;
@@ -219,6 +311,23 @@ export function createMusic(sounds) {
         if (i % 4 === 2) play(c, tek, at, 0.3 * fade, { pan: 0.2, keep: true });
       }
     },
+    /**
+     * One of the instruments of 3:5 begins to play (INSTRUMENTS: 'cornet' to 'dulcimer', then 'all' for "all kinds
+     * of musick"), joining any that already are. stop() silences them all.
+     */
+    consort(name) {
+      const c = ctx();
+      if (!c) return;
+      if (!made) make(c);
+      if (!band.size) {
+        nextStep = c.currentTime + 0.05;
+        stepCount = 0;
+      }
+      band.add(name);
+      if (name === 'dulcimer') held.drone.want = 0.55;
+    },
+    /** The still chord, 0 to 1. */
+    still: (level) => set('still', level * 0.16),
     /** The tune of the return, once through, over a string held low. */
     theme() {
       const c = ctx();
@@ -240,6 +349,7 @@ export function createMusic(sounds) {
       for (const name of Object.keys(held)) held[name].want = 0;
       for (const name of Object.keys(wanted)) wanted[name] = 0;
       drumLevel = 0;
+      band.clear();
       for (const source of playing) {
         try {
           source.stop();
@@ -256,6 +366,15 @@ export function createMusic(sounds) {
       for (const h of Object.values(held)) {
         const v = h.gain.gain.value;
         h.gain.gain.value = v + (h.want - v) * Math.min(1, dt * (h.want > v ? h.rise : h.fall));
+      }
+      // the consort, a little ahead of time
+      if (band.size) {
+        if (nextStep < c.currentTime) nextStep = c.currentTime + 0.05;
+        while (nextStep < c.currentTime + 0.15) {
+          consortStep(c, stepCount, nextStep);
+          nextStep += STEP;
+          stepCount++;
+        }
       }
       // the drum: struck in the middle on the beat, and at the rim between beats once they are close
       if (drumLevel > 0) {

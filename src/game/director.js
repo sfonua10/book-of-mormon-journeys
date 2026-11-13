@@ -26,6 +26,13 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
   let ended = false;
   /** A card is asking for one of its answers: a tap that is not on an answer takes none. */
   let asking = false;
+  /** A line (c.line) is up at the top: a card that comes takes it away, so the two are not read at once. */
+  let lineUp = false;
+  const clearLine = () => {
+    if (!lineUp) return;
+    lineUp = false;
+    ui.toast('', '', 0);
+  };
 
   const confirmKeys = new Set(['KeyE', 'Enter', 'Space', 'NumpadEnter']);
   addEventListener('keydown', (e) => {
@@ -53,14 +60,18 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
       return until(() => time >= t);
     },
     until,
-    /** A card, read before the story goes on. Nephi stands still while it is up. */
-    async card(text, ref = '', options = {}) {
+    /**
+     * A card, read before the story goes on. Nephi stands still while it is up. `voice` names its recording where
+     * it is not the whole of the verses its reference names (a verse cut short: scripture-daniel.js, EXCERPTS).
+     */
+    async card(text, ref = '', { voice: named = null, ...options } = {}) {
       frozen++;
       pressed = false;
+      clearLine();
       ui.card.show({ text, ref, ...options });
       // read aloud, where there is a recording of it (narration.js): the card then goes on by itself a moment
       // after the reading ends, and a press still goes on at once
-      const voice = ref ? g.narration?.say(ref) : null;
+      const voice = ref ? g.narration?.say(named ?? ref) : null;
       let readAt = null;
       const shown = time;
       await until(() => {
@@ -81,6 +92,20 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
     toast: (text, ref, seconds) => {
       if (ref) g.narration?.say(ref);
       ui.toast(text, ref, seconds);
+    },
+    /**
+     * A line of scripture shown at the top while the walk goes on, for a verse that tells what is happening: it
+     * stays as long as it takes to read (or to be read aloud). Resolves when it has been, so that what comes next
+     * does not cut it short; nothing need wait on it.
+     */
+    line(text, ref, { voice: named = null } = {}) {
+      const words = text.split(/\s+/).length;
+      const seconds = Math.max(6, words * 0.42);
+      const voice = ref ? g.narration?.say(named ?? ref) : null;
+      ui.toast(text, ref, seconds + 1);
+      lineUp = true;
+      const shown = time;
+      return until(() => (voice ? voice.ended || time - shown > seconds * 2.2 : time - shown > seconds) || auto);
     },
     /** The line saying what to do (null to take it away), and under it a list of [{ label, done }] if there is one. */
     objective: (text, list) => ui.objective(text, list),
@@ -136,11 +161,12 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
      * Resolves with the number of the answer taken. The autopilot takes `auto`. What is asked is a thought, in
      * italic; with `ref` it is the scripture's own words (a verse with a word left out), and is shown as scripture.
      */
-    async choice(text, answers, { auto: autoPick = 0, who = '', ref = '' } = {}) {
+    async choice(text, answers, { auto: autoPick = 0, who = '', ref = '', keep = false } = {}) {
       frozen++;
       asking = true;
       pressed = false;
       key = null;
+      clearLine();
       let at = 0;
       let picked = -1;
       const show = () => ui.card.show({ text, who, ref, kind: ref ? 'scripture' : 'thought', answers, at, hint: ui.touch ? 'Tap an answer' : 'W and S to choose · E to answer', onPick: (i) => (picked = i) });
@@ -164,9 +190,12 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
       });
       pressed = false;
       asking = false;
-      ui.card.hide();
-      frozen--;
-      await c.wait(0.25);
+      // (with `keep` the card stays up, for what is shown next in its place: the verse with its word filled in)
+      if (!keep) {
+        ui.card.hide();
+        frozen--;
+        await c.wait(0.25);
+      } else frozen--;
       return at;
     },
     /** To black (1) or back (0), over some seconds, and waits for it. */

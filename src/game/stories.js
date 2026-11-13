@@ -74,9 +74,11 @@ export const STORIES = [
     town: furnace.town,
     end: {
       heading: 'But If Not',
-      quote: '“Our God whom we serve is able to deliver us from the burning fiery furnace, and he will deliver us out of thine hand, O king. But if not, be it known unto thee, O king, that we will not serve thy gods.”',
+      quote: '“… our God whom we serve is able to deliver us from the burning fiery furnace, and he will deliver us out of thine hand, O king. But if not, be it known unto thee, O king, that we will not serve thy gods …”',
       cite: 'Daniel 3:17–18',
-      talk: 'They did not know whether they would be delivered, and they trusted the Lord all the same. What if faith does not bring the miracle we hope for? How did their choice lead a king to bless God, and whom might your choices help?',
+      // (as this week's Come, Follow Me asks: about trusting the Lord when faith is tried, and about choices that
+      // lead others to Him; and, for children, that Jesus will help them do what is right when it is hard)
+      talk: 'They did not know whether they would be delivered, and they trusted the Lord all the same. When have you been asked to do something you knew was wrong? What if faith does not bring the miracle we hope for? How did their choice lead a king to bless God, and whom might your choices help? Jesus will help you do what is right, even when it is hard: “whosoever shall put their trust in God shall be supported in their trials” (Alma 36:3).',
       links: [
         ['Daniel 3', 'https://www.churchofjesuschrist.org/study/scriptures/ot/dan/3?lang=eng'],
         ['this week’s Come, Follow Me', 'https://www.churchofjesuschrist.org/study/manual/come-follow-me-for-home-and-church-old-testament-2026/46?lang=eng'],

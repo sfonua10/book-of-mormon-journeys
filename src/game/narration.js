@@ -81,11 +81,15 @@ export function createNarration(sounds, { base = './audio/narration/', note = nu
   let order = [];
   const place = (key) => {
     const parts = key.split('-');
-    let n = parts.length;
+    // (a part of a verse has words after its numbers: "daniel-3-7-cut", "daniel-3-27-a-cut")
+    let end = parts.length;
+    while (end > 0 && !/^\d+$/.test(parts[end - 1])) end--;
+    if (end === 0) end = parts.length;
+    let n = end;
     while (n > 0 && /^\d+$/.test(parts[n - 1])) n--;
     // (a book's own number comes first, as in "1-nephi": only the numbers after its name are chapter and verse)
     if (n === 0) n = 1;
-    return { book: parts.slice(0, n).join('-'), at: parts.slice(n).map(Number) };
+    return { book: parts.slice(0, n).join('-'), at: parts.slice(n, end).map(Number) };
   };
   /** Asks for the recording at `key` (if it is not had yet) and the `more` after it in the same book. */
   const ahead = (key, more = 2) => {

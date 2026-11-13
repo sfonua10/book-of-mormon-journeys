@@ -3,6 +3,10 @@
 // the cards are the scripture's own (scripture-daniel.js, the King James Version); the few lines that are not are
 // what to do, or thoughts in italic without a reference.
 //
+// It is played more than it is read. What is said (the herald, the king, the three's answer) is a card, read before
+// the story goes on; what is only done is a line at the top, read while you walk; a list said over again is cut
+// short with "…". Four times a verse is shown with a word left out, to be filled in, and then read whole.
+//
 // You are one of the three, and the other two are with you. What happens is fixed, as it is written; how you do it
 // is yours. When the music sounds and all the people fall down, you may fall down with them, and it begins again:
 // "they serve not thy gods, nor worship the golden image which thou hast set up" (3:12).
@@ -13,7 +17,10 @@
 import { BABYLON, IN_BABYLON } from './babylon.js';
 import { createCrowd } from './crowd.js';
 import { createHalo } from './halo.js';
+import { createHeat } from './heat.js';
+import { INSTRUMENTS } from './music.js';
 import { GATE } from './places.js';
+import { BLANKS, EXCERPTS } from './scripture-daniel.js';
 
 /** Babylon, in place of Jerusalem. */
 export const LOOK = BABYLON;
@@ -129,15 +136,18 @@ export function story(g) {
   /** The ten people of the city: the crowd, the counsellors. They are dressed as Babylon's. */
   const people = Array.from({ length: 10 }, (_, i) => `town${i}`);
   people.forEach((name, i) => who(name).w.dress(PEOPLE_CLOTHES[i % PEOPLE_CLOTHES.length]));
-  // and about them the multitude, painted (crowd.js)
+  // and about them the multitude, painted (crowd.js); and the heat of the furnace, at the picture's edges (heat.js)
   const crowd = createCrowd(g.scene, g.field, g.heightAt);
+  const heat = createHeat();
 
-  // the places, in the world's (x, z)
+  // ---- the places, in the world's (x, z) ----
+  // inside the gate, and out between the walls of lions
   const gateOut = P(GATE[0] - 14, 0);
   const gateIn = C(-62, 0);
   const square = C(-44, 0);
+  // the image, and before it (it looks towards the city): where the herald stands, and where you stand, at the back
+  // of the multitude
   const image = P(...IN_BABYLON.image);
-  // before the image, on its east side (it looks towards the city): where the herald stands, the crowd, and you
   const [iu, iv] = IN_BABYLON.image;
   const heraldAt = P(iu + 6, iv);
   const before = P(iu + 34, iv - 1.5);
@@ -154,10 +164,10 @@ export function story(g) {
   // the way out of the city to the plain
   const toPlain = [C(-56, 0), gateIn, gateOut, P(206, 0)];
 
-  // ---- the fire -------------------------------------------------------------------------------------------------
+  // ---- the fire ----
   // Flames within the furnace: glows that face the eye, each wavering in its own time. `fire.level` is how hot it
-  // burns: as it is wont (about half), or "one seven times more" (1). They are only drawn; nothing is burned.
-  // (and over its open top, the fire standing up out of it, to be seen from all the plain)
+  // burns: as it is wont (about half), or "one seven times more" (1). They are only drawn; nothing is burned. Near
+  // one of the three in the midst of it they lean away.
   const rim = IN_BABYLON.furnaceTall + 1.4;
   const flames = [[-3.2, 3.4, 1.5], [3.1, 3.0, 1.5], [-2.6, 8.2, 1.5], [2.9, 8.6, 1.5], [0.2, 10.0, 1.5], [-3.6, 5.9, 1.5], [3.6, 6.1, 1.5], [0, 1.4, 1.5], [-4, 4.5, rim], [0.5, 4, rim], [4.2, 5, rim], [-3, 9.5, rim], [2.5, 9.8, rim]].map(([du, dv, up], i) => ({
     at: P(mu + du, mv + dv),
@@ -170,10 +180,19 @@ export function story(g) {
     const t = performance.now() / 1000;
     fire.now += (fire.level - fire.now) * 0.04;
     for (const f of flames) {
-      const [x, z] = f.at;
+      let [x, z] = f.at;
+      if (f.up < 2) {
+        const dx = x - g.player.x;
+        const dz = z - g.player.z;
+        const d = Math.hypot(dx, dz) || 1;
+        if (d < 3.4) {
+          x += (dx / d) * (3.4 - d) * 0.7;
+          z += (dz / d) * (3.4 - d) * 0.7;
+        }
+      }
       const waver = 0.78 + 0.22 * Math.sin(t * f.pace) * Math.sin(t * f.pace * 0.37 + f.pace);
       f.halo.update(t * 6);
-      f.halo.set(x, g.heightAt(x, z) + f.up + 0.25 * Math.sin(t * f.pace * 0.8), z, fire.now * waver * 0.5);
+      f.halo.set(x, g.heightAt(...f.at) + f.up + 0.25 * Math.sin(t * f.pace * 0.8), z, fire.now * waver * 0.5);
     }
     crowd.update(g.clock());
     requestAnimationFrame(burn);
@@ -212,12 +231,13 @@ export function story(g) {
     bind(false);
     crowd.show(false);
     crowd.fall(null);
+    heat.set(0);
     fire.level = 0.5;
     g.standAt(stand[0], stand[1], yawTo(stand, face));
   }
   /**
    * The people gathered before the image: the ten nearest you in two rows, the multitude before them and to either
-   * side, all facing the image; and the herald at its foot.
+   * side, all facing the image; the herald at its foot.
    */
   function gathered() {
     people.forEach((name, i) => {
@@ -228,10 +248,17 @@ export function story(g) {
     who('herald').place(...heraldAt, yawTo(heraldAt, before)).face(...before);
     const many = [];
     let k = 1;
-    const shake = () => ((k = (k * 16807) % 2147483647) / 2147483647 - 0.5);
+    const shake = () => (k = (k * 16807) % 2147483647) / 2147483647 - 0.5;
     for (let r = 0; r < 10; r++) for (let v = -24; v <= 24; v += 1.55) if (Math.abs(v) > 1.4) many.push(P(iu + 10 + r * 1.8 + shake() * 0.6, iv + v + shake() * 0.7));
     for (let u = iu + 27; u < iu + 46; u += 2) for (const side of [-1, 1]) for (let v = 9; v <= 24; v += 1.7) many.push(P(u + shake() * 0.7, iv + side * (v + shake() * 0.6)));
     crowd.place(many, 7);
+  }
+  /** The king on his dais, his mighty men by it. */
+  function court() {
+    const toward = P(ku - 16, kv + 18);
+    who('king').place(...kingAt, yawTo(kingAt, toward)).face(...toward);
+    who('mighty1').place(...P(ku - 3.5, kv + 4.5), 0).face(...toward);
+    who('mighty2').place(...P(ku + 3.5, kv + 4.5), 0).face(...toward);
   }
   /** All the people fall down before the image (or rise), not all at the one moment. */
   function fallDown(on) {
@@ -240,37 +267,55 @@ export function story(g) {
     crowd.fall(on ? g.clock() : null);
   }
 
+  // ---- what is shown of the scripture ----
+  /** A card of part of a verse (EXCERPTS), read before the story goes on. */
+  const part = (c, key) => c.card(EXCERPTS[key].text, g.reference(EXCERPTS[key].verse), { voice: EXCERPTS[key].voice });
+  /** A line at the top, read while the story goes on: a whole verse, or part of one. */
+  const line = (c, verse) => c.line(g.verses(verse), g.reference(verse));
+  const lineOf = (c, key) => c.line(EXCERPTS[key].text, g.reference(EXCERPTS[key].verse), { voice: EXCERPTS[key].voice });
   /**
-   * Verses with a word left out, to be filled in from three: the words are the verse's own (shortened with "…" where
-   * it is long), and the right answer is the word that was there. `verse` is the verse shown again after a wrong one.
+   * A verse with a word left out (BLANKS), to be filled in from three; then the verse whole in its place, whatever
+   * was chosen. Nothing is lost by a wrong answer. With ?wrong a test answers wrongly.
    */
-  const RECALL = {
-    able: { verse: '3:17', text: 'If it be so, our God whom we serve is _____ to deliver us from the burning fiery furnace …', answers: ['asked', 'able', 'told'], right: 1 },
-    not: { verse: '3:18', text: 'But if _____, be it known unto thee, O king, that we will not serve thy gods …', answers: ['so', 'now', 'not'], right: 2 },
-    trusted: { verse: '3:28', text: '… who hath sent his angel, and delivered his servants that _____ in him …', answers: ['trusted', 'hid', 'stood'], right: 0 },
-  };
-  /**
-   * Asks for the word left out of a verse, once. If it was not the verse's, the whole verse is read again. Nothing is
-   * lost by a wrong answer. With ?wrong a test answers wrongly.
-   */
-  async function recall(c, key) {
-    const q = RECALL[key];
+  async function fill(c, key) {
+    const q = BLANKS[key];
     const auto = g.flag('wrong') ? (q.right + 1) % q.answers.length : q.right;
-    const took = await c.choice(q.text, q.answers, { ref: g.reference(q.verse), auto });
-    if (took !== q.right) await c.verse(q.verse);
+    const took = await c.choice(q.text, q.answers, { ref: g.reference(q.verse), auto, keep: true });
+    g.log(`filled ${key}: ${took === q.right ? 'the word that was there' : 'another'}`);
+    await c.verse(q.verse);
+  }
+  /** "the sound of the cornet, flute, …": the instruments, as 3:5 names them, each as it begins to play. */
+  const NAMED = ['cornet', 'flute', 'harp', 'sackbut', 'psaltery', 'dulcimer', 'and all kinds of musick'];
+  async function music(c, quick = false) {
+    for (let i = 0; i < INSTRUMENTS.length; i++) {
+      g.music.consort(INSTRUMENTS[i]);
+      const heard = `… the sound of the ${NAMED.slice(0, i + 1).join(', ')} …`;
+      c.toast(heard, '', 4);
+      if (i === INSTRUMENTS.length - 1) fallDown(true);
+      await c.wait(quick ? 0.35 : 1.5);
+    }
   }
 
   return [
-    // ---- Act one: the image of gold (Daniel 3:1–12) ----
+    // ---- Act one: the image of gold (Daniel 3:1–13) ----
     {
       id: 'a1',
       label: 'Act One',
       scene: true,
       setup() {
-        reset({ hour: 15.2, stand: square, face: gateIn });
+        reset({ hour: 16.0, stand: square, face: gateIn });
         who('meshach').place(...C(-42, 2.2), yawTo(C(-42, 2.2), gateIn));
         who('abednego').place(...C(-41.4, -2), yawTo(C(-41.4, -2), gateIn));
         gathered();
+        court();
+        // (three of the officers are late, and go out before you)
+        people.slice(7).forEach((name, i) => {
+          const n = who(name);
+          const was = [n.x, n.z];
+          const p = C(-49 - i * 2.5, (i - 1) * 2.2);
+          n.place(...p, yawTo(p, gateIn));
+          n.walk([gateIn, gateOut, P(206, (i - 1) * 2), was], 1.35).then(() => n.face(...image));
+        });
       },
       async run(c) {
         await c.fade(0, 2);
@@ -279,6 +324,7 @@ export function story(g) {
         await c.verse('3:1');
         c.objective('Go out by the gate to the plain of Dura, where the image stands.');
         withMe();
+        line(c, '3:2');
         await c.reach(...before, 8, { via: toPlain });
       },
     },
@@ -286,11 +332,12 @@ export function story(g) {
       id: 'a1-dura',
       label: 'Act One',
       setup() {
-        reset({ hour: 15.6, stand: before, face: image });
+        reset({ hour: 16.0, stand: before, face: image });
         const [a, b] = [P(iu + 33.5, iv + 2.4), P(iu + 34.2, iv - 3.6)];
         who('meshach').place(...a, yawTo(a, image)).face(...image);
         who('abednego').place(...b, yawTo(b, image)).face(...image);
         gathered();
+        court();
       },
       async run(c) {
         c.objective(null);
@@ -303,52 +350,60 @@ export function story(g) {
           else one.place(...p, yawTo(p, image)).face(...image);
         }
         // the image over them all, seen from where you stand
+        c.freeze(true);
         g.view({ from: [...P(iu + 42, iv + 6), 1.5], to: [...image, 13] });
-        await c.verse('3:3');
+        await lineOf(c, '3:3');
         g.view(null);
+        c.freeze(false);
         shoulder(at(who('herald')), { back: 4.4, up: 2.4, look: 1.5 });
         await c.verse('3:4');
         await c.verse('3:5');
         await c.verse('3:6');
         g.view(null);
-        // The music sounds, and all the people fall down. He may stand, as they did, or fall down with the rest: then
-        // it is begun again. With ?bow a test falls down the first time.
+        // The music sounds, an instrument at a time, and all the people fall down. You may stand, as they did, or
+        // fall down with the rest: then it is begun again. With ?bow a test falls down the first time.
         for (let tries = 0; ; tries++) {
-          g.music.fanfare(13);
-          fallDown(true);
+          await music(c, tries > 0);
           const began = c.time;
           let fell = false;
           await c.until(() => {
             c.prompt('Fall down and worship the golden image');
             if (c.pressed || (g.auto && g.flag('bow') && tries === 0 && c.time - began > 2)) fell = true;
-            return fell || c.time - began > 12;
+            return fell || c.time - began > 10;
           });
           c.prompt(null);
           if (!fell) break;
           g.log(`fell down (try ${tries + 1})`);
           await c.fade(1, 0.6);
           g.music.stop();
-          await c.card('… they serve not thy gods, nor worship the golden image which thou hast set up.', 'Daniel 3:12');
+          await part(c, '3:12-end');
           fallDown(false);
           await c.fade(0, 0.8);
           await c.wait(1.2);
         }
-        g.view({ from: [...P(iu + 36, iv + 9), 3.4], to: [...P(iu + 15, iv + 1), -0.5] });
-        await c.verse('3:7');
+        // only three stand: seen from above, among them all
+        c.freeze(true);
+        g.view({ from: [...P(iu + 50, iv + 16), 9], to: [...P(iu + 30, iv - 1), 0.5] });
+        await lineOf(c, '3:7');
         g.view(null);
+        c.freeze(false);
         g.music.stop();
         fallDown(false);
-        await c.verse('3:8');
+        // certain Chaldeans go to the king, and accuse them
+        const [ch1, ch2] = [who('town3'), who('town6')];
+        const went = Promise.all([ch1.walk([P(ku - 2, kv + 6)], 2.6).then(() => ch1.face(...kingAt)), ch2.walk([P(ku + 2, kv + 6)], 2.6).then(() => ch2.face(...kingAt))]);
+        await Promise.all([line(c, '3:8'), Promise.race([went, c.wait(14)])]);
+        c.freeze(true);
+        g.view({ from: [...P(ku - 7, kv + 15), 2.8], to: [...P(ku, kv + 3), 1.4] });
         await c.verse('3:12');
-        // they are sent for: two of the king's mighty men come out from the city
+        g.view(null);
+        c.freeze(false);
+        // they are sent for: two of the king's mighty men come to them
         const [m1, m2] = [who('mighty1'), who('mighty2')];
-        m1.place(...P(iu + 62, iv + 10), 0);
-        m2.place(...P(iu + 63.5, iv + 11.5), 0);
         await c.hold(Promise.all([m1.walk([[g.player.x + 2.2, g.player.z + 1.4]], 3.2), m2.walk([[g.player.x + 3.2, g.player.z - 1.2]], 3.2)]));
         m1.face(...me());
         m2.face(...me());
-        await c.verse('3:13');
-        await c.fade(1, 1.5);
+        line(c, '3:13');
       },
     },
 
@@ -356,35 +411,34 @@ export function story(g) {
     {
       id: 'a2',
       label: 'Act Two',
-      scene: true,
       setup() {
-        reset({ hour: 16.6, stand: inCourt, face: kingAt });
-        who('king').place(...kingAt, yawTo(kingAt, inCourt)).face(...inCourt);
-        const [a, b] = [P(ku + 2.4, kv + 8.4), P(ku - 2.3, kv + 8.6)];
+        const stand = P(ku - 6, kv + 20);
+        reset({ hour: 16.0, stand, face: kingAt });
+        gathered();
+        court();
+        const [a, b] = [P(ku - 8, kv + 21.5), P(ku - 4.2, kv + 21.8)];
         who('meshach').place(...a, yawTo(a, kingAt)).face(...kingAt);
         who('abednego').place(...b, yawTo(b, kingAt)).face(...kingAt);
-        // the mighty men behind them; the king's counsellors down either side of the ground before his seat
-        who('mighty1').place(...P(ku + 1.8, kv + 11.5), 0).face(...kingAt);
-        who('mighty2').place(...P(ku - 1.8, kv + 11.5), 0).face(...kingAt);
-        people.slice(0, 8).forEach((name, i) => {
-          const p = P(ku + (i % 2 ? 7.5 : -7.5), kv + 1 + Math.floor(i / 2) * 2.4);
-          who(name).place(p[0], p[1], 0).face(...P(ku, kv + 1 + Math.floor(i / 2) * 2.4));
-        });
-        who('herald').place(...P(ku + 3.2, kv + 2.2), 0).face(...inCourt);
+        who('mighty1').place(...P(ku - 4, kv + 18), 0).face(...me());
+        who('mighty2').place(...P(ku - 8, kv + 18), 0).face(...me());
       },
       async run(c) {
-        await c.fade(0, 1.5);
         g.narration?.warm(g.reference('3:14'));
-        await c.chapter('Act Two', 'Before the King', 'Daniel 3');
-        c.objective('Stand before the king.');
+        c.objective('Go with the mighty men, and stand before the king.');
         withMe();
-        await c.act(...kingAt, 5.2, 'Stand before the king');
+        // (they go with you, one either side)
+        Object.assign(who('mighty1').follow(g.player, 2.4, 2.2), { maxSpeed: 4 });
+        Object.assign(who('mighty2').follow(g.player, 2.4, -2.2), { maxSpeed: 4 });
+        await c.chapter('Act Two', 'Before the King', 'Daniel 3', 2.6);
+        await c.act(...kingAt, 5.5, 'Stand before the king');
         c.objective(null);
-        for (const n of ['meshach', 'abednego']) who(n).stop().face(...kingAt);
+        for (const n of ['meshach', 'abednego', 'mighty1', 'mighty2']) who(n).stop().face(...kingAt);
         who('king').face(...me());
         shoulder(at(who('king')), { back: 3.6, up: 2.2, look: 1.5 });
         await c.verse('3:14');
-        await c.verse('3:15');
+        // (as he names the furnace, the eye goes to it)
+        g.view({ from: [...P(ku - 3, kv + 9), 2.4], to: [...P(mu, mv + 4), 5] });
+        await part(c, '3:15');
         g.view(null);
         c.objective('Answer the king.');
         await c.act(...kingAt, 6.5, 'Answer the king');
@@ -392,11 +446,8 @@ export function story(g) {
         shoulder(at(who('king')), { back: 3.6, side: -1.1, up: 2.2, look: 1.5 });
         await c.verse('3:16');
         await c.verse('3:17');
-        await recall(c, 'able');
-        await c.verse('3:18');
-        await recall(c, 'not');
+        await fill(c, 'not');
         g.view(null);
-        await c.fade(1, 1.5);
       },
     },
 
@@ -404,47 +455,64 @@ export function story(g) {
     {
       id: 'a3',
       label: 'Act Three',
-      scene: true,
       setup() {
-        reset({ hour: 17.6, stand: street, face: mouth });
-        const [a, b] = [P(mu + 2.2, mv - 6.2), P(mu - 2.2, mv - 6.2)];
-        who('meshach').place(...a, yawTo(a, mouth)).face(...mouth);
-        who('abednego').place(...b, yawTo(b, mouth)).face(...mouth);
-        who('mighty1').place(...P(mu + 3.6, mv - 8), 0).face(...mouth);
-        who('mighty2').place(...P(mu - 3.6, mv - 8), 0).face(...mouth);
-        const k = P(mu - 8, mv - 9.5);
-        who('king').place(...k, yawTo(k, mouth)).face(...mouth);
-        // "the princes, governors, and captains, and the king's counsellors, being gathered together" (3:27)
-        people.slice(0, 8).forEach((name, i) => {
-          const p = P(mu - 14 + i * 3.6 + (i > 3 ? 4 : 0), mv - 12.4 - (i % 2) * 0.9);
-          who(name).place(p[0], p[1], 0).face(...mouth);
-        });
+        reset({ hour: 16.0, stand: inCourt, face: kingAt });
+        gathered();
+        court();
+        who('king').face(...inCourt);
+        const [a, b] = [P(ku + 2.4, kv + 8.4), P(ku - 2.3, kv + 8.6)];
+        who('meshach').place(...a, yawTo(a, kingAt)).face(...kingAt);
+        who('abednego').place(...b, yawTo(b, kingAt)).face(...kingAt);
+        who('mighty1').place(...P(ku + 1.8, kv + 11.5), 0).face(...kingAt);
+        who('mighty2').place(...P(ku - 1.8, kv + 11.5), 0).face(...kingAt);
       },
       async run(c) {
         const king = who('king');
-        await c.fade(0, 1.5);
         g.narration?.warm(g.reference('3:19'));
-        await c.chapter('Act Three', 'In the Midst of the Fire', 'Daniel 3');
-        shoulder(mouth, { back: 4.2, up: 2.4, look: 1.6 });
-        await c.verse('3:19');
+        await c.chapter('Act Three', 'In the Midst of the Fire', 'Daniel 3', 2.6);
+        shoulder(at(king), { back: 3.6, up: 2.2, look: 1.5 });
         // heated "one seven times more than it was wont to be heated"
+        await c.verse('3:19');
         fire.level = 1;
-        g.music.drum(0.25);
-        await c.verse('3:20');
-        bind(true);
-        g.burden(1.6);
-        await c.verse('3:21');
+        heat.set(0.45);
+        g.music.drum(0.3);
         g.view(null);
+        // the mighty men bind them, and lead them to the furnace, slowly
+        bind(true);
+        g.burden(2.0);
+        const [m1, m2] = [who('mighty1'), who('mighty2')];
+        Object.assign(m1.follow(g.player, 1.6, 1.4), { maxSpeed: 2.4 });
+        Object.assign(m2.follow(g.player, 1.6, -1.4), { maxSpeed: 2.4 });
+        withMe();
+        line(c, '3:20');
+        c.objective('Go to the mouth of the furnace.');
+        // half way there, what you know comes to mind; the drum softens, and a still chord comes in
+        await c.reach(...street, 3.2, { via: [P(ku + 1, kv + 14)], unless: () => from(street) < from(inCourt) });
+        c.objective(null);
+        await fill(c, 'able');
+        g.music.drum(0.08);
+        g.music.still(1);
+        heat.set(0.65);
+        c.objective('Go to the mouth of the furnace.');
+        line(c, '3:21');
+        await c.reach(...street, 3.2);
+        c.objective(null);
         // (the casting in, and what the flame did to those who cast them, are read and not seen)
         await c.fade(1, 1.2);
         g.music.drum(0);
-        await c.verse('3:22');
-        await c.verse('3:23');
-        // within: loose, and not alone
-        for (const n of ['mighty1', 'mighty2']) who(n).show(false);
-        bind(false);
-        g.burden(null);
-        g.standAt(...midst, yawTo(midst, deep));
+        await c.verse('3:22', '3:23');
+      },
+    },
+    {
+      id: 'a3-fire',
+      label: 'Act Three',
+      scene: true,
+      setup() {
+        reset({ hour: 16.8, stand: midst, face: deep });
+        fire.level = 1;
+        heat.set(0.6);
+        gathered();
+        court();
         const [a, b] = [P(mu + 2.4, mv + 4.6), P(mu - 2.3, mv + 4.2)];
         who('meshach').place(...a, yawTo(a, deep)).face(...deep);
         who('abednego').place(...b, yawTo(b, deep)).face(...deep);
@@ -453,15 +521,26 @@ export function story(g) {
         fourth.aura = 1;
         fourth.open = 0.25;
         g.guidance.shine(...deep, 7);
-        g.music.angel(0.7);
+        // the king has come down from his seat to look, his counsellors with him
         const near = P(mu - 6.5, mv - 3.4);
-        king.place(...near, yawTo(near, mouth)).face(...mouth);
+        who('king').place(...near, yawTo(near, mouth)).face(...mouth);
+        people.slice(0, 8).forEach((name, i) => {
+          const p = P(mu - 14 + i * 3.6 + (i > 3 ? 4 : 0), mv - 12.4 - (i % 2) * 0.9);
+          who(name).place(p[0], p[1], 0).face(...mouth);
+        });
+      },
+      async run(c) {
+        const king = who('king');
+        const fourth = who('fourth');
+        g.music.angel(0.7);
         await c.fade(0, 2.2);
-        // "walking in the midst of the fire": he may walk as he will; the story goes on when he comes to the fourth
+        // loose, and not alone: "walking in the midst of the fire". Nothing is asked: walk as you will; the one who
+        // stood there comes to walk with you, and the story goes on when you come to where he stood.
         withMe();
-        await c.reach(...deep, 3.4, { mark: false });
+        fourth.walk([[g.player.x + 1.6, g.player.z + 0.8]], 1.0).then(() => fourth.follow(g.player, 1.8, 1.5));
+        await c.reach(...deep, 3.0, { mark: false });
         for (const n of ['meshach', 'abednego']) who(n).stop().face(...deep);
-        // as the king saw it, from before the mouth: the four of them, each to be seen
+        // as the king saw it, from before the mouth: count them
         const seen = [[g.player, P(mu - 1.3, mv + 6.4)], [who('meshach'), P(mu + 2.3, mv + 6.9)], [who('abednego'), P(mu - 2.9, mv + 8.2)]];
         const stood = P(mu + 0.5, mv + 8.6);
         fourth.place(...stood, yawTo(stood, mouth)).face(...mouth);
@@ -472,9 +551,40 @@ export function story(g) {
         }
         g.view({ from: [...P(mu - 0.3, mv - 4.6), 1.7], to: [...P(mu, mv + 7.4), 1.2] });
         await c.verse('3:24');
-        await c.verse('3:25');
+        await fill(c, 'four');
         g.view(null);
+        king.face(...mouth);
+      },
+    },
+    {
+      id: 'a3-forth',
+      label: 'Act Three',
+      setup() {
+        reset({ hour: 16.8, stand: P(mu - 1.3, mv + 6.4), face: mouth });
+        fire.level = 1;
+        heat.set(0.6);
+        gathered();
+        court();
+        who('meshach').place(...P(mu + 2.3, mv + 6.9), 0).face(...mouth);
+        who('abednego').place(...P(mu - 2.9, mv + 8.2), 0).face(...mouth);
+        const near = P(mu - 6.5, mv - 3.4);
+        who('king').place(...near, yawTo(near, mouth)).face(...mouth);
+        const fourth = who('fourth').place(...P(mu + 0.5, mv + 8.6), 0).face(...mouth);
+        fourth.w.glow.value = 0.45;
+        fourth.aura = 1;
+        fourth.open = 0.25;
+        g.music.angel(0.7);
+        people.slice(0, 8).forEach((name, i) => {
+          const p = P(mu - 14 + i * 3.6 + (i > 3 ? 4 : 0), mv - 12.4 - (i % 2) * 0.9);
+          who(name).place(p[0], p[1], 0).face(...mouth);
+        });
+      },
+      async run(c) {
+        const king = who('king');
+        const fourth = who('fourth');
+        shoulder(at(king), { back: 3.2, up: 1.9, look: 1.6 });
         await c.verse('3:26');
+        g.view(null);
         c.objective('Come forth of the midst of the fire.');
         withMe();
         await c.reach(...street, 3.2, { via: [mouth] });
@@ -485,13 +595,43 @@ export function story(g) {
         g.guidance.shine(null);
         g.music.angel(0);
         fire.level = 0.5;
-        for (const n of ['meshach', 'abednego']) who(n).stop().face(...at(king));
-        king.face(...me());
-        shoulder(at(king), { back: 3.6, up: 2.2, look: 1.5 });
+        heat.set(0);
+        // The princes, governors, captains and counsellors gather round them, and see (3:27): go among them, and
+        // what they saw is told, a part at a time.
+        const saw = ['3:27-a', '3:27-b', '3:27-c', '3:27-d'];
+        const lookers = people.slice(0, 4).map((name, i) => {
+          const n = who(name);
+          const p = P(mu - 9 + i * 6, mv - 14 - (i % 2) * 3);
+          n.walk([p], 1.4).then(() => n.face(...me()));
+          return { n, key: saw[i], seen: false, at: p };
+        });
+        for (const name of people.slice(4, 8)) who(name).face(...me());
+        const list = () => lookers.map((l) => ({ label: EXCERPTS[l.key].text.replace(/^… /, '').replace(/ …$/, '').replace(/\.$/, ''), done: l.seen }));
+        while (lookers.some((l) => !l.seen)) {
+          c.objective('Go among the princes and counsellors.', list());
+          let near = null;
+          await c.until(() => {
+            const left = lookers.filter((l) => !l.seen).sort((a, b) => from(at(a.n)) - from(at(b.n)));
+            c.lead({ x: left[0].n.x, z: left[0].n.z, r: 1.4, mark: true });
+            near = left.find((l) => from(at(l.n)) < 2.6) ?? null;
+            return !!near;
+          });
+          near.seen = true;
+          near.n.face(...me());
+          lineOf(c, near.key);
+          g.music.pluck();
+        }
+        c.lead(null);
+        c.objective('Go among the princes and counsellors.', list());
+        await c.wait(1.2);
+        c.objective(null);
         await c.verse('3:27');
-        await c.verse('3:28');
-        await recall(c, 'trusted');
-        await c.card('… because there is no other God that can deliver after this sort.', 'Daniel 3:29');
+        // the king blesses God
+        king.walk([[g.player.x - 2.2, g.player.z - 3]], 1.4).then(() => king.face(...me()));
+        await c.wait(1.5);
+        shoulder(at(king), { back: 3.6, up: 2.2, look: 1.5 });
+        await fill(c, 'trusted');
+        await part(c, '3:29-end');
         g.music.theme();
         await c.verse('3:30');
         g.view(null);

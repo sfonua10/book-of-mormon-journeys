@@ -112,9 +112,9 @@ export const PLAIN = {
   /** On it: the image of gold, which looks towards the city (+u). */
   image: [128, 0],
   /** The king's seat: a low dais, its middle and half-sizes and how high it is; he sits facing +v. */
-  seat: { at: [180, -40], half: [5, 3.5], rise: 0.6 },
-  /** The burning fiery furnace: a kiln of brick, its middle and half-sizes; its door is on its -v face. */
-  kiln: { at: [166, 44], half: [8, 7] },
+  seat: { at: [190, -26], half: [5, 3.5], rise: 0.6 },
+  /** The burning fiery furnace: a kiln of brick, its middle and half-sizes; its door is on its -v face, towards him. */
+  kiln: { at: [192, 32], half: [8, 7] },
   /** Places nothing should be planted on: [u, v, radius]. */
   keep: [
     [170, 0, 80],

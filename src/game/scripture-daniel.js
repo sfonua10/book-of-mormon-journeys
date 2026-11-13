@@ -37,3 +37,33 @@ export const VERSES = {
 };
 
 export const daniel = scripture('Daniel', VERSES);
+
+/**
+ * Parts of verses, where the story shows less than the whole: the verse's own words, in order, with "…" where words
+ * are left out (a list said over again, or what has just been read). Each has its own recording (`voice`), since it
+ * is not the verse read whole. tools/excerpts.mjs checks every one against the verse.
+ */
+export const EXCERPTS = {
+  '3:3': { verse: '3:3', text: 'Then the princes, the governors, and captains … and all the rulers of the provinces, were gathered together unto the dedication of the image that Nebuchadnezzar the king had set up; and they stood before the image that Nebuchadnezzar had set up.' },
+  '3:7': { verse: '3:7', text: 'Therefore at that time, when all the people heard the sound of the cornet … and all kinds of musick, all the people, the nations, and the languages, fell down and worshipped the golden image that Nebuchadnezzar the king had set up.' },
+  '3:12-end': { verse: '3:12', text: '… they serve not thy gods, nor worship the golden image which thou hast set up.' },
+  '3:15': { verse: '3:15', text: 'Now if ye be ready that at what time ye hear the sound of the cornet … and all kinds of musick, ye fall down and worship the image which I have made; well: but if ye worship not, ye shall be cast the same hour into the midst of a burning fiery furnace; and who is that God that shall deliver you out of my hands?' },
+  '3:29-end': { verse: '3:29', text: '… because there is no other God that can deliver after this sort.' },
+  // the four things the princes saw (3:27), one at a time
+  '3:27-a': { verse: '3:27', text: '… upon whose bodies the fire had no power …' },
+  '3:27-b': { verse: '3:27', text: '… nor was an hair of their head singed …' },
+  '3:27-c': { verse: '3:27', text: '… neither were their coats changed …' },
+  '3:27-d': { verse: '3:27', text: '… nor the smell of fire had passed on them.' },
+};
+for (const [key, e] of Object.entries(EXCERPTS)) e.voice = `Daniel ${key} cut`;
+
+/**
+ * Verses with a word left out, to be filled in from three (shortened with "…" where they are long). The right answer
+ * is the word that was there; tools/excerpts.mjs checks that, put back, it is the verse's own words.
+ */
+export const BLANKS = {
+  able: { verse: '3:17', text: 'If it be so, our God whom we serve is _____ to deliver us from the burning fiery furnace …', answers: ['asked', 'able', 'told'], right: 1 },
+  not: { verse: '3:18', text: 'But if _____, be it known unto thee, O king, that we will not serve thy gods …', answers: ['so', 'now', 'not'], right: 2 },
+  four: { verse: '3:25', text: 'He answered and said, Lo, I see _____ men loose, walking in the midst of the fire, and they have no hurt …', answers: ['three', 'four', 'two'], right: 1 },
+  trusted: { verse: '3:28', text: '… who hath sent his angel, and delivered his servants that _____ in him …', answers: ['trusted', 'hid', 'stood'], right: 0 },
+};

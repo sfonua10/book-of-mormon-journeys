@@ -71,17 +71,27 @@ const { key: KEY, names: NAMES } = chosenStory;
 const slug = (ref) => ref.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const spoken = (text) => (has('plain') ? text : text.replace(new RegExp(`\\b(${Object.keys(NAMES).join('|')})\\b`, 'g'), (n) => NAMES[n]));
 
-// the cards, in the story's order: every verse or run of verses the story quotes
-const { verses, reference } = (await import(path.join(here, chosenStory.scripture[0])))[chosenStory.scripture[1]];
+// the cards, in the story's order: every verse or run of verses the story quotes (as a card, a line at the top, or
+// the verse read whole once a word left out of it is filled in), and every part of a verse it shows on its own
+const scriptureFile = await import(path.join(here, chosenStory.scripture[0]));
+const { verses, reference } = scriptureFile[chosenStory.scripture[1]];
+const EXCERPTS = scriptureFile.EXCERPTS ?? {};
+const BLANKS = scriptureFile.BLANKS ?? {};
 const story = fs.readFileSync(path.join(here, chosenStory.file), 'utf8');
 const cards = [];
-for (const m of story.matchAll(/verses?\('(\d+:\d+)'(?:, '(\d+:\d+)')?/g)) {
-  const first = m[1];
-  const last = m[2] ?? first;
-  const ref = reference(first, last);
-  if (cards.some((c) => c.ref === ref)) continue;
-  const text = spoken(verses(first, last));
-  cards.push({ id: first === last ? first : `${first}-${last}`, ref, key: slug(ref), text, mark: createHash('sha1').update(`${model}|${voice}|${text}`).digest('hex').slice(0, 12) });
+const add = (id, ref, words) => {
+  if (cards.some((c) => c.ref === ref)) return;
+  const text = spoken(words);
+  cards.push({ id, ref, key: slug(ref), text, mark: createHash('sha1').update(`${model}|${voice}|${text}`).digest('hex').slice(0, 12) });
+};
+const said = [
+  ...[...story.matchAll(/(?:verses?|line)\((?:c, )?'(\d+:\d+)'(?:, '(\d+:\d+)')?/g)].map((m) => ({ at: m.index, first: m[1], last: m[2] ?? m[1] })),
+  ...[...story.matchAll(/fill\(c, '(\w+)'\)/g)].filter((m) => BLANKS[m[1]]).map((m) => ({ at: m.index, first: BLANKS[m[1]].verse, last: BLANKS[m[1]].verse })),
+  ...Object.keys(EXCERPTS).filter((k) => story.includes(`'${k}'`)).map((k) => ({ at: story.indexOf(`'${k}'`), part: k })),
+].sort((a, b) => a.at - b.at);
+for (const s of said) {
+  if (s.part) add(s.part, EXCERPTS[s.part].voice, EXCERPTS[s.part].text);
+  else add(s.first === s.last ? s.first : `${s.first}-${s.last}`, reference(s.first, s.last), verses(s.first, s.last));
 }
 
 const dir = path.join(here, 'public/audio/narration');
