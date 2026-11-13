@@ -41,6 +41,9 @@ export function createCast(field, base, world) {
   // the light round one who shines (the angel): set an npc's `aura` above 0 and it is drawn about him
   const halo = world.scene ? createHalo(world.scene, { color: [1.5, 1.42, 1.2], width: 2.8, height: 3.9, back: 0.6, rays: 1 }) : null;
   let time = 0;
+  // where Nephi is, and how far from him (metres) anyone is still drawn
+  const eye = [0, 0];
+  const FAR = 150;
 
   async function add(name, clothes, { beard = false, scale = 1 } = {}) {
     const man = cloneMan(base);
@@ -231,6 +234,21 @@ export function createCast(field, base, world) {
       o.rotation.set(0, npc.yaw, 0);
     }
     // the clips: idle below walking pace, walk to about 2 m/s, jog, then run
+    // One far off cannot be seen for his smallness. He goes on his way (those who wait on him are still told when he
+    // comes), but he is not drawn, and his limbs and his cloak are not worked out: on a phone that is most of the
+    // people of the city, most of the time.
+    const far = Math.hypot(npc.x - eye[0], npc.z - eye[1]) > FAR;
+    if (far !== !!npc.far) {
+      npc.far = far;
+      if (far) {
+        npc.unseen = npc.w.group.children.filter((child) => child.visible);
+        for (const child of npc.unseen) child.visible = false;
+      } else {
+        for (const child of npc.unseen ?? []) child.visible = true;
+        npc.unseen = null;
+      }
+    }
+    if (far) return;
     const s = npc.speed;
     const W = npc.weights;
     const goal = s < 0.25 ? { Idle: 1, Walk: 0, Jog: 0, Run: 0 } : s < 2.2 ? { Idle: 0, Walk: 1, Jog: 0, Run: 0 } : s < 4.2 ? { Idle: 0, Walk: 0, Jog: 1, Run: 0 } : { Idle: 0, Walk: 0, Jog: 0, Run: 1 };
@@ -288,6 +306,8 @@ export function createCast(field, base, world) {
     },
     /** Records where Nephi is; a jump of more than a few metres (a new scene) starts the trail again. */
     track(x, z) {
+      eye[0] = x;
+      eye[1] = z;
       const last = trail[trail.length - 1];
       if (last && Math.hypot(x - last[0], z - last[1]) > 6) trail.length = 0;
       if (!last || trail.length === 0 || Math.hypot(x - last[0], z - last[1]) > 1) {

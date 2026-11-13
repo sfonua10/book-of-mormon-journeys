@@ -49,18 +49,42 @@ export function createNarration(sounds, { base = './audio/narration/', note = nu
   };
   show();
 
+  // A recording as it comes over the wire, asked for once. It is asked for a little before its card comes up (see
+  // `ahead`), so that on a slow connection the reading begins with the card and not some seconds into it; it is only
+  // made into sound when it is to be read, since sound takes many times the room.
+  const bytes = new Map(); // slug -> Promise<ArrayBuffer | null>
+  const wired = (key) => {
+    if (!bytes.has(key)) {
+      bytes.set(
+        key,
+        fetch(`${base}${key}.mp3`)
+          .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+          .catch(() => null),
+      );
+    }
+    return bytes.get(key);
+  };
   const fetched = (key) => {
     if (!buffers.has(key)) {
       const ctx = sounds.context;
       buffers.set(
         key,
-        fetch(`${base}${key}.mp3`)
-          .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
-          .then((bytes) => ctx.decodeAudioData(bytes))
+        wired(key)
+          .then((got) => (got ? ctx.decodeAudioData(got) : null))
           .catch(() => null),
       );
     }
     return buffers.get(key);
+  };
+  // The recordings in the order of the account (chapter, then verse), which is nearly the order they are read in.
+  let order = [];
+  const place = (key) => key.split('-').slice(2).map(Number);
+  /** Asks for the recording at `key` (if it is not had yet) and the `more` after it in the account. */
+  const ahead = (key, more = 2) => {
+    if (!on) return;
+    const i = order.indexOf(key);
+    if (i < 0) return;
+    for (const k of order.slice(i, i + 1 + more)) if (!buffers.has(k)) wired(k);
   };
 
   function stop(fade = 0.12) {
@@ -101,6 +125,11 @@ export function createNarration(sounds, { base = './audio/narration/', note = nu
       try {
         const list = await (await fetch(`${base}manifest.json`)).json();
         for (const key of Object.keys(list)) have.add(key);
+        order = [...have].sort((a, b) => {
+          const [ca, va] = place(a);
+          const [cb, vb] = place(b);
+          return ca - cb || va - vb;
+        });
       } catch {
         // (none)
       }
@@ -110,6 +139,8 @@ export function createNarration(sounds, { base = './audio/narration/', note = nu
       return on;
     },
     has: (ref) => have.has(slug(ref)),
+    /** A reading that is coming soon (the first of an act, while its title is up): it is asked for now. */
+    warm: (ref) => ahead(slug(ref ?? '')),
     /**
      * Reads the scripture at `ref`, if there is a recording of it and the reading is on. Returns a handle whose
      * `ended` turns true when it has been read to its end (not when it is stopped), or null if nothing is read.
@@ -122,6 +153,7 @@ export function createNarration(sounds, { base = './audio/narration/', note = nu
       const handle = { ended: false };
       const mine = { source: null, gain: null, handle };
       current = mine;
+      ahead(key);
       fetched(key).then((buffer) => {
         // (gone on from the card before it came, or no sound yet to play it through: then the card just waits)
         if (current !== mine) return;

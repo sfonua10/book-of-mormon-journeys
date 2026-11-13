@@ -918,6 +918,35 @@ director = createDirector(journey.beats(g), ui, g, { keep: keeper(journey), auto
 window.__tg = { sounds, walker, follow, input, wanderer, animator, setThird, standAt, pickTime, timings, view: null, wind, THREE, renderer, scene, camera, field, frame, sky, trees, farWoods, stones, player, keys, tick, setHour, setWind, fromValley, director, cast, props, city, g, ready: true };
 
 // ---- the loop's switch ----------------------------------------------------------------------------------------
+// How finely the picture is drawn follows what the device can do. Where two seconds together go by at fewer than 27
+// pictures a second, each is drawn with fewer points (down to three quarters of the page's own): on a phone that is
+// the difference between a walk that stutters and one that does not, and the painting hides the loss. It is never
+// made finer again (so it cannot waver), and an address that says how fine (?dpr=) is left as it says.
+const fine = {
+  ratio: renderer.getPixelRatio(),
+  least: 0.75,
+  frames: 0,
+  ms: 0,
+  /** Passes over the first seconds, and the seconds after each change, when things are still settling. */
+  skip: 3000,
+  frame(ms) {
+    if (params.has('dpr') || this.ratio <= this.least) return;
+    // (a long gap is the page having been away, not a slow picture)
+    if (ms <= 0 || ms > 400) return;
+    if (this.skip > 0) return void (this.skip -= ms);
+    this.frames++;
+    this.ms += ms;
+    if (this.ms < 2000) return;
+    const fps = (this.frames * 1000) / this.ms;
+    this.frames = 0;
+    this.ms = 0;
+    if (fps >= 27) return;
+    this.ratio = Math.max(this.least, this.ratio * 0.82);
+    this.skip = 1500;
+    renderer.setPixelRatio(this.ratio);
+    console.log(`[game] ${fps.toFixed(0)} pictures a second: drawn at ${this.ratio.toFixed(2)} of the page's points`);
+  },
+};
 let last = 0;
 let running = false;
 /** Draws while the page says the demo can be seen, and not at all while it can't. */
@@ -929,6 +958,7 @@ function run() {
   renderer.setAnimationLoop(
     want
       ? (now) => {
+          fine.frame(now - last);
           const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
           last = now;
           tick(dt);

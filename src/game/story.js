@@ -262,6 +262,7 @@ export function story(g) {
       },
       async run(c) {
         await c.fade(0, 2);
+        g.narration?.warm(g.reference('3:7'));
         await c.chapter('Act One', 'Up to Jerusalem', '1 Nephi 3');
         await c.verse('3:7');
         await recall(c, 'do');
@@ -319,6 +320,7 @@ export function story(g) {
       },
       async run(c) {
         await c.fade(0, 1.5);
+        g.narration?.warm(g.reference('3:22'));
         await c.chapter('Act Two', 'Our Gold and Our Silver', '1 Nephi 3');
         await c.verse('3:22');
         followMe();
@@ -562,6 +564,7 @@ export function story(g) {
       },
       async run(c) {
         await c.fade(0, 2);
+        g.narration?.warm(g.reference('4:5'));
         await c.chapter('Act Three', 'Led by the Spirit', '1 Nephi 4');
         await c.verse('4:5');
         await c.verse('4:6');
@@ -779,6 +782,7 @@ export function story(g) {
         shoulder(at(lehi), { back: 4.2, up: 2.3, look: 1.4 });
         // the one tune of the story: a lyre, for their joy
         g.music.theme();
+        g.narration?.warm(g.reference('5:7'));
         await c.fade(0, 2);
         await c.verse('5:7');
         await c.verse('5:8');
