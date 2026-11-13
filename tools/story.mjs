@@ -2,7 +2,7 @@
 // the end. A still is taken as each beat begins.
 //   node tools/story.mjs [--beat a2] [--out shots/story] [--limit 2400] [--size 1280x720] [--shots]
 //     [--query "hold&wrong"]  (more for the page's address: ?hold is overtaken in the chase once before it
-//     leaves the property; ?wrong answers Zoram wrongly once each time)
+//     leaves the property; ?wrong answers Zoram wrongly once each time, and fills in every left-out word wrongly)
 import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';

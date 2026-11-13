@@ -133,16 +133,17 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
     },
     /**
      * A card that asks, with a few answers under it: W and S (or the arrows) go between them, E takes one; or 1, 2.
-     * Resolves with the number of the answer taken. The autopilot takes `auto`.
+     * Resolves with the number of the answer taken. The autopilot takes `auto`. What is asked is a thought, in
+     * italic; with `ref` it is the scripture's own words (a verse with a word left out), and is shown as scripture.
      */
-    async choice(text, answers, { auto: autoPick = 0, who = '' } = {}) {
+    async choice(text, answers, { auto: autoPick = 0, who = '', ref = '' } = {}) {
       frozen++;
       asking = true;
       pressed = false;
       key = null;
       let at = 0;
       let picked = -1;
-      const show = () => ui.card.show({ text, who, kind: 'thought', answers, at, hint: ui.touch ? 'Tap an answer' : 'W and S to choose · E to answer', onPick: (i) => (picked = i) });
+      const show = () => ui.card.show({ text, who, ref, kind: ref ? 'scripture' : 'thought', answers, at, hint: ui.touch ? 'Tap an answer' : 'W and S to choose · E to answer', onPick: (i) => (picked = i) });
       show();
       const shown = time;
       await until(() => {

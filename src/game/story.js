@@ -72,6 +72,25 @@ export const CLOTHES = {
     BELT: [[0.36, 0.22, 0.12], [0.18, 0.11, 0.09]],
     OUTFIT: { head: 'cloth', cloak: true, hem: 0.5, edge: 0, bare: 0, belt: 2, cuffs: 0, lace: 0.32, blade: 0 },
   },
+  // their father, in the tent he dwelt in (2:15): an old man's long robe of red-brown wool with a pale mantle over
+  // it, a cloth on his head, his hair and beard gone grey
+  lehi: {
+    ...tunic([0.58, 0.3, 0.2], [0.3, 0.14, 0.14]),
+    CLOAK: [[0.84, 0.78, 0.64], [0.5, 0.46, 0.46]],
+    HAT: [[0.86, 0.8, 0.68], [0.52, 0.48, 0.5]],
+    HAIR: [[0.72, 0.7, 0.66], [0.44, 0.43, 0.45]],
+    TRIM: [[0.8, 0.66, 0.36], [0.48, 0.38, 0.22]],
+    BELT: [[0.36, 0.22, 0.12], [0.18, 0.11, 0.09]],
+    OUTFIT: { head: 'cloth', cloak: true, hem: 0.1, edge: 0, bare: 0, belt: 2, cuffs: 0, lace: 0.3, blade: 0, sleeves: true },
+  },
+  // their mother, Sariah (5:1): a long robe of dusk-blue wool to the ankle, wide sleeves, a pale cloth over her head
+  sariah: {
+    ...tunic([0.36, 0.44, 0.6], [0.18, 0.22, 0.36]),
+    HAT: [[0.9, 0.86, 0.76], [0.56, 0.53, 0.56]],
+    TRIM: [[0.82, 0.7, 0.5], [0.5, 0.42, 0.32]],
+    BELT: [[0.6, 0.42, 0.3], [0.34, 0.22, 0.2]],
+    OUTFIT: { head: 'cloth', cloak: false, hem: 0.05, edge: 0, bare: 0, belt: 2, cuffs: 0, lace: 0.3, blade: 0, sleeves: true },
+  },
   // a heavenly messenger: a loose white robe to below the feet, wide sleeves, open at the neck; white hair
   angel: {
     ...tunic([1.0, 0.98, 0.94], [0.8, 0.8, 0.87]),
@@ -83,7 +102,7 @@ export const CLOTHES = {
     OUTFIT: { head: 'none', cloak: false, hem: 0.01, edge: 0, bare: 0, belt: 0, cuffs: 0, lace: 0, blade: 0, sleeves: true, neck: 'v' },
   },
 };
-/** Who is in the story, in the order they are made, and whether they wear a beard. */
+/** Who is in the story, in the order they are made, whether they wear a beard, and (if not 1) how tall they stand. */
 export const PEOPLE = [
   ['laman', 'laman', true],
   ['lemuel', 'lemuel', true],
@@ -93,6 +112,8 @@ export const PEOPLE = [
   ['servant2', 'servant', false],
   ['zoram', 'zoram', false],
   ['angel', 'angel', false],
+  ['lehi', 'lehi', true],
+  ['sariah', 'sariah', false, 0.93],
 ];
 
 export function story(g) {
@@ -202,6 +223,32 @@ export function story(g) {
       await c.thought(otherwise);
     }
   }
+  /**
+   * Verses with a word left out, to be filled in from three: the words are the verse's own (shortened with "…" where
+   * it is long), and the right answer is the word that was there. `verse` is the verse shown again after a wrong one.
+   */
+  const RECALL = {
+    do: { verse: '3:7', text: 'I will go and _____ the things which the Lord hath commanded …', answers: ['see', 'do', 'tell'], right: 1 },
+    mightier: { verse: '4:1', text: '… for behold he is _____ than all the earth …', answers: ['mightier', 'older', 'farther'], right: 0 },
+    spirit: { verse: '4:6', text: 'And I was led by the _____, not knowing beforehand the things which I should do.', answers: ['stars', 'moon', 'Spirit'], right: 2 },
+    faithful: { verse: '3:16', text: 'Wherefore, let us be _____ in keeping the commandments of the Lord …', answers: ['faithful', 'silent', 'swift'], right: 0 },
+    accomplished: { verse: '3:15', text: '… we will not go down unto our father in the wilderness until we have _____ the thing which the Lord hath commanded us.', answers: ['forgotten', 'accomplished', 'sold'], right: 1 },
+    way: { verse: '3:7', text: '… save he shall prepare a _____ for them that they may accomplish the thing which he commandeth them.', answers: ['sword', 'tent', 'way'], right: 2 },
+  };
+  /** What Nephi has said of the Lord before the chase: one of these is asked as each try at it begins. */
+  const remembered = ['faithful', 'accomplished', 'way'];
+  /**
+   * Asks for the word left out of a verse, once. Resolves true if it was the verse's; if not, the whole verse is
+   * read again, and it resolves false. Nothing is lost by a wrong answer. With ?wrong a test answers wrongly.
+   */
+  async function recall(c, key) {
+    const q = RECALL[key];
+    const auto = g.flag('wrong') ? (q.right + 1) % q.answers.length : q.right;
+    const took = await c.choice(q.text, q.answers, { ref: g.reference(q.verse), auto });
+    if (took === q.right) return true;
+    await c.verse(q.verse);
+    return false;
+  }
 
   return [
     // ---- Act one: up to Jerusalem (1 Nephi 3:7–21) ----
@@ -217,6 +264,7 @@ export function story(g) {
         await c.fade(0, 2);
         await c.chapter('Act One', 'Up to Jerusalem', '1 Nephi 3');
         await c.verse('3:7');
+        await recall(c, 'do');
         await c.verse('3:9');
         c.objective('Speak with your brethren by the tents.');
         await c.act(...at(who('sam')), 4.5, 'Consult with your brethren');
@@ -349,10 +397,17 @@ export function story(g) {
         // They run: the brothers ahead, out of the gate and away; the servants after Nephi. What he carries weighs on
         // him, and they gain on him until he leaves it (3:26). If they overtake him it is begun again from here: "the
         // servants of Laban did not overtake us" (3:27).
+        //
+        // As each try begins he is asked for a word of what he has said of the Lord (a different verse each time). If
+        // he remembers it he is strengthened: for the first moments what he carries does not slow him, and he gets
+        // ahead of them. Then it weighs on him as before: he must still leave it, as it is written.
         const away = [C(18, 1), C(-30, 0), gateIn, gateOut, P(200, 90), P(ROCK[0] + 8, ROCK[1] - 6)];
+        const STRONG = 2;
         for (let tries = 0; ; tries++) {
+          const strong = await recall(c, remembered[tries % remembered.length]);
           c.objective('Flee from the servants of Laban! Out of the city, into the wilderness.');
-          g.burden(3.7);
+          g.burden(strong ? null : 3.7);
+          if (strong) g.music.pluck();
           // (his brothers let fall what they carry, and are gone)
           g.props.show('gold', at(who('laman')));
           g.props.show('silver', at(who('lemuel')));
@@ -363,6 +418,7 @@ export function story(g) {
           let after = [];
           let left = false;
           let taken = false;
+          let weighed = !strong;
           const free = await c.reach(...P(GATE[0] - 30, 0), 10, {
             via: outOfCity,
             unless() {
@@ -372,6 +428,11 @@ export function story(g) {
                 Object.assign(s2.follow(g.player, 0.8, 0.9), { maxSpeed: 4.1, keen: true });
               }
               g.town.watch();
+              // (his strength is spent, and what he carries weighs on him again)
+              if (!weighed && !left && c.time - began > STRONG) {
+                weighed = true;
+                g.burden(3.7);
+              }
               const d = Math.min(30, ...after.map((s) => from(at(s))));
               // the drum: slow while they are far behind, quick when they are at his heels
               g.music.drum(Math.min(1, Math.max(0.12, 1 - (d - 2) / 14)));
@@ -482,6 +543,7 @@ export function story(g) {
         await c.act(...at(who('laman')), 4.5, 'Speak to your brethren');
         c.objective(null);
         await c.verse('4:1');
+        await recall(c, 'mightier');
         await c.verse('4:2', '4:3');
         await c.verse('4:4');
         await c.fade(1, 2);
@@ -503,6 +565,7 @@ export function story(g) {
         await c.chapter('Act Three', 'Led by the Spirit', '1 Nephi 4');
         await c.verse('4:5');
         await c.verse('4:6');
+        await recall(c, 'spirit');
         await c.thought('No one marks the way tonight. When you do not know where to go, stand still a moment, and look.');
         g.guidance.lead([hide, gateOut, gateIn, C(-20, 0), C(19.5, 0), C(19.5, 14), fallen]);
         c.lead(null);
@@ -624,20 +687,24 @@ export function story(g) {
           'He stops, the keys still in his hand. Laban was with the elders this very night.',
         );
         await c.verse('4:23');
-        // he takes up the plates
+        // he goes to the table where the plates lie
         await c.hold(zoram.walk([C(IN_CITY.table[0] + 0.5, IN_CITY.table[1] + 1.3)], 1.2));
-        g.props.carry('plates', zoram);
         zoram.face(...me());
         // "to my elder brethren, who were without the walls" (4:24)
         await ask(
           c,
-          'He holds the plates of brass. Where will you say they are to go?',
+          'The plates of brass lie before you. Where will you say you are to carry them?',
           ['To your father, in the wilderness.', 'To your elder brethren, who are without the walls.'],
           1,
-          'He draws the plates back a little. Laban has no father in the wilderness.',
+          'He looks at you, and does not move from the table. Laban has no father in the wilderness.',
         );
         g.view(null);
         await c.verse('4:24');
+        // it is Nephi who carries them: "that I should carry the engravings" (4:24)
+        zoram.walk([byTable], 1.2).then(() => zoram.face(...table));
+        await c.act(...table, 2.4, 'Take up the plates of brass');
+        g.props.carry('plates', g.player);
+        g.music.pluck();
         await c.verse('4:25');
         zoram.follow(g.player, 2.4, 1.2);
         await c.verse('4:26');
@@ -654,7 +721,7 @@ export function story(g) {
         reset({ hour: 22.8, stand: P(GATE[0] - 14, 14), face: hide, clothes: 'laban' });
         brothersAt(P(GATE[0] - 13, 36), P(GATE[0] - 14, 14));
         who('zoram').place(...P(GATE[0] - 12, 11), 0).follow(g.player, 2.4, 1.2);
-        g.props.carry('plates', who('zoram'));
+        g.props.carry('plates', g.player);
       },
       async run(c) {
         c.objective(null);
@@ -704,6 +771,12 @@ export function story(g) {
         who('zoram').place(...P(4, 13), 0).face(...me());
         g.props.carry('plates', null);
         g.props.show('plates', P(3, 8.5));
+        // their father and their mother, before the tents: "their joy was full, and my mother was comforted" (5:7)
+        const lehi = who('lehi').place(...P(1.2, 6.6), 0).face(...me());
+        who('sariah').place(...P(2.6, 10.4), 0).face(...me());
+        // The tent of their father was not in sight of Jerusalem (2:4–6): the view is held on the tents, with the
+        // city behind the eye, while the cards are read.
+        shoulder(at(lehi), { back: 4.2, up: 2.3, look: 1.4 });
         // the one tune of the story: a lyre, for their joy
         g.music.theme();
         await c.fade(0, 2);
@@ -712,6 +785,7 @@ export function story(g) {
         await c.verse('5:21');
         await c.verse('3:7');
         await c.fade(1, 2);
+        g.view(null);
         g.end();
       },
     },

@@ -17,11 +17,13 @@ It is a remix of Patch's [Painted valley](https://patch.gg/blendi/painted-valley
 | Act | Verses | When | What you do |
 |---|---|---|---|
 | One: Up to Jerusalem | 3:7–21 | Afternoon | Consult with your brothers, walk to the gate. Laman goes in and is driven out. You answer your brothers (3:15–20). |
-| Two: Our Gold and Our Silver | 3:22–4:4 | Golden hour | Go into Lehi's house by its door and gather the gold, the silver and the precious things, in any order: a list at the top left ticks each off, and Laman, Lemuel and you carry them out. Carry them to Laban. Flee his servants: what you carry slows you, and they gain on you until you leave the property behind (3:26). If they overtake you the chase begins again. Hide in the rock. The angel speaks. You answer your brothers again (4:1–3). |
+| Two: Our Gold and Our Silver | 3:22–4:4 | Golden hour | Go into Lehi's house by its door and gather the gold, the silver and the precious things, in any order: a list at the top left ticks each off, and Laman, Lemuel and you carry them out. Carry them to Laban. Before you flee you are asked for a word of a verse you have read; remember it and you are strengthened for the first moments of the chase. Flee his servants: what you carry slows you, and they gain on you until you leave the property behind (3:26). If they overtake you the chase begins again. Hide in the rock. The angel speaks. You answer your brothers again (4:1–3). |
 | Three: Led by the Spirit | 4:5–38 | Night | No marker and no objective. Stand still and a soft light gathers in the air the way you should go, with a soft tone (4:6). Take a wrong turning and there is no light until you stand still again. Find Laban, drunken in the street. You may obey at once, or shrink as Nephi did (4:10): step back or wait, and the Spirit speaks again (4:11, 4:12–13). Then speak to Zoram in the voice of Laban, go with him into the treasury, and choose how you answer him three times. Go back to your brothers outside the walls, and make the oath. |
 | The tent of their father | 5:7–8, 5:21, 3:7 | Evening | The return, and the end screen with questions to talk about. |
 
 The words on the cards are the scripture's own, quoted from `src/game/scripture.js`. The few lines that are not scripture are shown in italics without a reference. That includes the three questions about Zoram and their answers: the right answer is what the verse says Nephi did, and the verse follows it; a wrong answer makes Zoram hesitate, and the question is asked again.
+
+Four times a verse is shown with a word left out, to be filled in from three: after 3:7, before each try at the chase (3:16, 3:15 or 3:7, a different one each try), after 4:1 and after 4:6. The card is the verse's own words with its reference, and the right answer is the word that was there. A wrong answer costs nothing: the whole verse is read again and the story goes on.
 
 What happens is fixed; how you do it is yours. There is no score, no meter and no other ending.
 
@@ -47,7 +49,7 @@ On a phone or a tablet it is played by touch (`src/game/touch.js`): a thumb on t
 Useful URL options:
 - `?quality=low|medium|high` (medium by default)
 - `?beat=a2` starts at a beat. The beats are `a1`, `a1-gate`, `a2`, `a2-laban`, `a2-rock`, `a3`, `a3-laban`, `a3-treasury`, `a3-walls` and `home`.
-- `?auto` lets the game play itself. With `&hold` it is overtaken once in the chase before it leaves the property, and with `&wrong` it answers Zoram wrongly once each time, so a test covers those ways too.
+- `?auto` lets the game play itself. With `&hold` it is overtaken once in the chase before it leaves the property, and with `&wrong` it answers Zoram wrongly once each time and fills in every left-out word wrongly, so a test covers those ways too.
 
 ## Checking it
 

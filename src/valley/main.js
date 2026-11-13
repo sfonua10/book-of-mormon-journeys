@@ -413,7 +413,7 @@ const wanderer = await wandererComing;
 scene.add(wanderer.group);
 // everyone else in the story
 const cast = createCast(field, await manComing, { heightAt: (x, z) => field.heightAt(x, z), air: (x, y, z, out) => air(x, y, z, out), scene });
-await Promise.all(PEOPLE.map(([name, dress, beard]) => cast.add(name, STORY_CLOTHES[dress], { beard })));
+await Promise.all(PEOPLE.map(([name, dress, beard, scale]) => cast.add(name, STORY_CLOTHES[dress], { beard, scale })));
 // and the people of the city, by day
 await Promise.all(TOWNSFOLK.map(([name, dress, beard]) => cast.add(name, TOWN_CLOTHES[dress], { beard })));
 scene.add(cast.group);
