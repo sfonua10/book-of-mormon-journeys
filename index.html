@@ -45,24 +45,27 @@
       #loading {
         background: #dfeaf0;
       }
+      /* the keys, in one line at the very bottom, under the cards and the line of scripture (which stand above it) */
       #start {
         display: none;
-        align-content: end;
-        padding-bottom: 9vh;
-        color: #fff;
-        text-shadow: 0 1px 10px rgba(20, 50, 80, 0.55);
+        inset: auto 0 6px 0;
+        color: #f4ead6;
+        font-size: 13px;
+      }
+      #start div {
+        padding: 3px 14px 4px;
+        border-radius: 999px;
+        background: rgba(24, 18, 12, 0.62);
+        white-space: nowrap;
       }
       #start b {
-        display: block;
-        font-size: 19px;
         font-weight: normal;
+        color: #fff;
       }
-      #start span {
-        display: block;
-        margin-top: 4px;
-        font-size: 13px;
-        opacity: 0.85;
-        text-align: center;
+      @media (max-width: 620px) {
+        #start span {
+          display: none;
+        }
       }
       #note {
         position: fixed;
@@ -94,8 +97,8 @@
     <canvas id="view"></canvas>
     <div id="start">
       <div>
-        <b>Click to continue</b>
-        <span>W A S D to walk · Shift to run · Mouse to look · E to act</span>
+        <b>Click to look around</b>
+        <span> · W A S D to walk · Shift to run · E to act</span>
       </div>
     </div>
     <div id="note"></div>

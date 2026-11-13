@@ -4,12 +4,15 @@
 // what to do, or thoughts in italic without a reference.
 //
 // It is played more than it is read. What is said (the herald, the king, the three's answer) is a card, read before
-// the story goes on; what is only done is a line at the top, read while you walk; a list said over again is cut
-// short with "…". Four times a verse is shown with a word left out, to be filled in, and then read whole.
+// the story goes on, under the name of who says it: the name stands where the verse tells who spoke ("Nebuchadnezzar
+// spake and said unto them,"), and under it is only what was said. What is only done is a line low on the screen,
+// read while you walk; a list said over again is cut short with "…". Four times a verse is shown with a word left
+// out, to be filled in, and then read whole.
 //
 // You are one of the three, and the other two are with you. What happens is fixed, as it is written; how you do it
-// is yours. When the music sounds and all the people fall down, you may fall down with them, and it begins again:
-// "they serve not thy gods, nor worship the golden image which thou hast set up" (3:12).
+// is yours. When the music sounds and all the people fall down, you are asked what you will do: stand, or fall down
+// with them. Fall down, and it begins again: "they serve not thy gods, nor worship the golden image which thou hast
+// set up" (3:12).
 //
 // What is shown follows what the text says and how a family would want it told. The men who cast them in are slain
 // by the flame (3:22): that is read, in the dark, and not seen. The fourth in the fire is shown as the king saw him,
@@ -20,7 +23,7 @@ import { createHalo } from './halo.js';
 import { createHeat } from './heat.js';
 import { INSTRUMENTS } from './music.js';
 import { GATE } from './places.js';
-import { BLANKS, EXCERPTS } from './scripture-daniel.js';
+import { BLANKS, EXCERPTS, SAID } from './scripture-daniel.js';
 
 /** Babylon, in place of Jerusalem. */
 export const LOOK = BABYLON;
@@ -268,22 +271,31 @@ export function story(g) {
   }
 
   // ---- what is shown of the scripture ----
-  /** A card of part of a verse (EXCERPTS), read before the story goes on. */
-  const part = (c, key) => c.card(EXCERPTS[key].text, g.reference(EXCERPTS[key].verse), { voice: EXCERPTS[key].voice });
-  /** A line at the top, read while the story goes on: a whole verse, or part of one. */
+  /** A card of part of a verse (EXCERPTS), read before the story goes on: under the speaker's name, if it is said. */
+  const part = (c, key) => c.card(EXCERPTS[key].text, g.reference(EXCERPTS[key].verse), { voice: EXCERPTS[key].voice, who: EXCERPTS[key].who ?? '' });
+  /** A verse whole, as a card: under the speaker's name, where the whole of it is what one of them says (SAID). */
+  const verse = (c, v) => c.verse(v, v, { who: SAID[v] ?? '' });
+  /** A line low on the screen, read while the story goes on: a whole verse, or part of one. */
   const line = (c, verse) => c.line(g.verses(verse), g.reference(verse));
   const lineOf = (c, key) => c.line(EXCERPTS[key].text, g.reference(EXCERPTS[key].verse), { voice: EXCERPTS[key].voice });
   /**
-   * A verse with a word left out (BLANKS), to be filled in from three; then the verse whole in its place, whatever
-   * was chosen. Nothing is lost by a wrong answer. With ?wrong a test answers wrongly.
+   * A verse with a word left out (BLANKS), to be filled in from three; then the verse whole in its place (or what
+   * is said in it, under the speaker's name), whatever was chosen. Nothing is lost by a wrong answer. With ?wrong a
+   * test answers wrongly.
    */
   async function fill(c, key) {
     const q = BLANKS[key];
     const auto = g.flag('wrong') ? (q.right + 1) % q.answers.length : q.right;
-    const took = await c.choice(q.text, q.answers, { ref: g.reference(q.verse), auto, keep: true });
+    const took = await c.choice(q.text, q.answers, { ref: g.reference(q.verse), who: q.who ?? '', auto, keep: true });
     g.log(`filled ${key}: ${took === q.right ? 'the word that was there' : 'another'}`);
-    await c.verse(q.verse);
+    if (q.said) await part(c, q.said);
+    else await verse(c, q.verse);
   }
+  /**
+   * What is asked when the music has sounded and all the people have fallen down. These are not the scripture's
+   * words: the card is a thought, in italic, without a reference. The first answer is what the three did.
+   */
+  const ASKED = { text: 'All the people fall down and worship the golden image. What will you do?', answers: ['Stand', 'Fall down and worship'] };
   /** "the sound of the cornet, flute, …": the instruments, as 3:5 names them, each as it begins to play. */
   const NAMED = ['cornet', 'flute', 'harp', 'sackbut', 'psaltery', 'dulcimer', 'and all kinds of musick'];
   async function music(c, quick = false) {
@@ -356,23 +368,19 @@ export function story(g) {
         g.view(null);
         c.freeze(false);
         shoulder(at(who('herald')), { back: 4.4, up: 2.4, look: 1.5 });
-        await c.verse('3:4');
-        await c.verse('3:5');
-        await c.verse('3:6');
+        await part(c, '3:4-said');
+        await verse(c, '3:5');
+        await verse(c, '3:6');
         g.view(null);
-        // The music sounds, an instrument at a time, and all the people fall down. You may stand, as they did, or
-        // fall down with the rest: then it is begun again. With ?bow a test falls down the first time.
+        // The music sounds, an instrument at a time, and all the people fall down. Then it is asked what you will
+        // do, and there is no haste to answer: stand, as they did, or fall down with the rest, and it is begun
+        // again. With ?bow a test falls down the first time.
         for (let tries = 0; ; tries++) {
           await music(c, tries > 0);
-          const began = c.time;
-          let fell = false;
-          await c.until(() => {
-            c.prompt('Fall down and worship the golden image');
-            if (c.pressed || (g.auto && g.flag('bow') && tries === 0 && c.time - began > 2)) fell = true;
-            return fell || c.time - began > 10;
-          });
-          c.prompt(null);
-          if (!fell) break;
+          // (a moment to see them all down)
+          await c.wait(1);
+          const took = await c.choice(ASKED.text, ASKED.answers, { auto: g.flag('bow') && tries === 0 ? 1 : 0 });
+          if (took === 0) break;
           g.log(`fell down (try ${tries + 1})`);
           await c.fade(1, 0.6);
           g.music.stop();
@@ -395,7 +403,7 @@ export function story(g) {
         await Promise.all([line(c, '3:8'), Promise.race([went, c.wait(14)])]);
         c.freeze(true);
         g.view({ from: [...P(ku - 7, kv + 15), 2.8], to: [...P(ku, kv + 3), 1.4] });
-        await c.verse('3:12');
+        await verse(c, '3:12');
         g.view(null);
         c.freeze(false);
         // they are sent for: two of the king's mighty men come to them
@@ -435,7 +443,7 @@ export function story(g) {
         for (const n of ['meshach', 'abednego', 'mighty1', 'mighty2']) who(n).stop().face(...kingAt);
         who('king').face(...me());
         shoulder(at(who('king')), { back: 3.6, up: 2.2, look: 1.5 });
-        await c.verse('3:14');
+        await part(c, '3:14-said');
         // (as he names the furnace, the eye goes to it)
         g.view({ from: [...P(ku - 3, kv + 9), 2.4], to: [...P(mu, mv + 4), 5] });
         await part(c, '3:15');
@@ -444,8 +452,8 @@ export function story(g) {
         await c.act(...kingAt, 6.5, 'Answer the king');
         c.objective(null);
         shoulder(at(who('king')), { back: 3.6, side: -1.1, up: 2.2, look: 1.5 });
-        await c.verse('3:16');
-        await c.verse('3:17');
+        await part(c, '3:16-said');
+        await verse(c, '3:17');
         await fill(c, 'not');
         g.view(null);
       },
@@ -550,7 +558,9 @@ export function story(g) {
           else one.place(...p, yawTo(p, stood)).face(...stood);
         }
         g.view({ from: [...P(mu - 0.3, mv - 4.6), 1.7], to: [...P(mu, mv + 7.4), 1.2] });
-        await c.verse('3:24');
+        await part(c, '3:24-a');
+        await part(c, '3:24-said');
+        await part(c, '3:24-answer');
         await fill(c, 'four');
         g.view(null);
         king.face(...mouth);
@@ -583,10 +593,13 @@ export function story(g) {
         const king = who('king');
         const fourth = who('fourth');
         shoulder(at(king), { back: 3.2, up: 1.9, look: 1.6 });
-        await c.verse('3:26');
+        await part(c, '3:26-a');
+        await part(c, '3:26-said');
         g.view(null);
         c.objective('Come forth of the midst of the fire.');
         withMe();
+        // (the end of the verse is what you now do)
+        lineOf(c, '3:26-end');
         await c.reach(...street, 3.2, { via: [mouth] });
         c.objective(null);
         // (nothing is said of where the fourth went: when they have come forth he is not seen)

@@ -583,17 +583,22 @@ function showMarker() {
   if (!director) return;
   const goal = director.goal;
   if (!goal?.mark || director.frozen) return void ui.marker(null);
-  marked.set(goal.x, field.heightAt(goal.x, goal.z) + 2.4, goal.z).project(camera);
+  // (over the heads of any who stand there)
+  marked.set(goal.x, field.heightAt(goal.x, goal.z) + 3, goal.z).project(camera);
   const w = window.innerWidth;
   const h = window.innerHeight;
-  let x = (marked.x * 0.5 + 0.5) * w;
-  let y = (-marked.y * 0.5 + 0.5) * h;
-  // behind the eye: show it at the bottom edge, on the side it lies
+  const metres = Math.hypot(goal.x - player.x, goal.z - player.z);
+  const x = (marked.x * 0.5 + 0.5) * w;
+  const y = (-marked.y * 0.5 + 0.5) * h;
+  // behind the eye: at the side it lies, half way up, with an arrow that way round
   if (marked.z > 1) {
-    x = w - x;
-    y = h - 60;
+    const left = w - x < w / 2;
+    return void ui.marker(left ? 50 : w - 50, h / 2, metres, left ? Math.PI : 0);
   }
-  ui.marker(Math.min(w - 50, Math.max(50, x)), Math.min(h - 60, Math.max(70, y)), Math.hypot(goal.x - player.x, goal.z - player.z));
+  // off the picture: at its edge (and clear of the words low on the screen), with an arrow to where it is
+  const cx = Math.min(w - 50, Math.max(50, x));
+  const cy = Math.min(h - Math.max(150, h * 0.3), Math.max(70, y));
+  ui.marker(cx, cy, metres, cx === x && cy === y ? null : Math.atan2(y - cy, x - cx));
 }
 
 /** The autopilot: walks him towards the story's goal, and lifts him over anything he is stuck on. */

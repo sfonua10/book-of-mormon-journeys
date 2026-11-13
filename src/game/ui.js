@@ -15,7 +15,7 @@ const CSS = /* css */ `
   background: radial-gradient(ellipse at 50% 55%, transparent 52%, rgba(255, 196, 110, 0.18) 78%, rgba(255, 180, 90, 0.34) 100%);
 }
 #g-card {
-  left: 50%; bottom: 7vh; transform: translate(-50%, 12px); width: min(760px, calc(100vw - 32px)); box-sizing: border-box;
+  left: 50%; bottom: max(7vh, 44px); transform: translate(-50%, 12px); width: min(760px, calc(100vw - 32px)); box-sizing: border-box;
   padding: 22px 28px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
   color: var(--ink); opacity: 0; transition: opacity 0.35s, transform 0.35s; z-index: 9;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
@@ -32,7 +32,7 @@ const CSS = /* css */ `
 }
 #g-card .answer.at { opacity: 1; border-color: var(--gold); background: rgba(227, 189, 109, 0.14); }
 #g-card .answer b { color: var(--gold); font-weight: normal; margin-right: 10px; }
-#g-card .who { color: var(--gold); font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
+#g-card .who { color: var(--gold); font-size: 14px; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 7px; }
 #g-objective {
   left: 20px; top: 20px; width: max-content; max-width: min(460px, calc(100vw - 40px)); box-sizing: border-box;
   padding: 11px 20px 13px 16px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--gold);
@@ -55,31 +55,64 @@ const CSS = /* css */ `
   100% { transform: none; }
 }
 @media (prefers-reduced-motion: reduce) { #g-objective.new { animation: none; } }
-#g-prompt {
-  left: 50%; bottom: 16vh; transform: translateX(-50%); color: #fff; font-size: 18px; letter-spacing: 0.05em;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); opacity: 0; transition: opacity 0.25s; white-space: nowrap;
+/* Low on the screen, where the cards are: the prompt to act, and under it the verse that is read while the walk
+   goes on. Each takes room only while it is shown, so the prompt sits just above whatever is under it. (What to do
+   is at the top left, and the scripture's words at the bottom: the two are never in the one place.) */
+#g-low {
+  left: 50%; bottom: max(7vh, 44px); transform: translateX(-50%); width: min(680px, calc(100vw - 32px));
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
 }
-#g-prompt.on { opacity: 1; }
+#g-low > .g-layer { position: static; }
+#g-prompt {
+  display: none; padding: 7px 18px 8px; border-radius: 999px; background: rgba(24, 18, 12, 0.62); color: #fff; font-size: 18px;
+  letter-spacing: 0.05em; white-space: nowrap;
+}
+#g-prompt.on { display: block; animation: g-in 0.25s ease-out; }
+@keyframes g-in { from { opacity: 0; } }
 #g-prompt kbd {
   display: inline-block; min-width: 1.4em; padding: 1px 7px; margin-right: 10px; border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 4px; font: inherit; font-size: 15px; background: rgba(0, 0, 0, 0.25);
 }
+/* The way-marker: a gold diamond with a dark heart (so that it shows against gold, sky and sand alike), a ring that
+   widens from it, and how far it is. Off the picture it lies at the edge, with an arrow to where the place is. */
 #g-marker { left: 0; top: 0; opacity: 0; transition: opacity 0.4s; }
 #g-marker.on { opacity: 1; }
-#g-marker .d {
-  position: absolute; left: -7px; top: -7px; width: 12px; height: 12px; transform: rotate(45deg);
-  border: 2px solid var(--gold); background: rgba(227, 189, 109, 0.25); box-shadow: 0 0 10px rgba(255, 210, 120, 0.7);
+#g-marker .d, #g-marker .ring { position: absolute; left: -13px; top: -13px; width: 22px; height: 22px; transform: rotate(45deg); border: 2px solid var(--gold); }
+#g-marker .d { background: rgba(24, 18, 12, 0.88); box-shadow: 0 0 0 1.5px rgba(24, 18, 12, 0.75), 0 0 16px rgba(255, 210, 120, 0.85); }
+#g-marker .d::after { content: ''; position: absolute; inset: 6px; background: var(--gold); }
+#g-marker .ring { animation: g-ring 1.8s ease-out infinite; }
+@keyframes g-ring {
+  from { transform: rotate(45deg) scale(1); opacity: 0.9; }
+  to { transform: rotate(45deg) scale(2.5); opacity: 0; }
 }
+#g-marker .a {
+  display: none; position: absolute; left: -8px; top: -8px; width: 0; height: 0; border: 8px solid transparent; border-left-color: var(--gold);
+  transform: rotate(var(--turn, 0rad)) translateX(30px); filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
+}
+#g-marker.edge .a { display: block; }
 #g-marker .m {
-  position: absolute; left: -40px; width: 80px; top: 12px; text-align: center; color: #fff; font-size: 12px;
-  letter-spacing: 0.06em; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+  position: absolute; left: 0; top: 26px; transform: translateX(-50%); padding: 2px 10px 3px; border-radius: 999px; white-space: nowrap;
+  background: rgba(24, 18, 12, 0.8); color: #fff; font-size: 13px; letter-spacing: 0.06em;
+}
+#g-marker .m:empty { display: none; }
+/* a new thing to do: the marker swells once, as the panel that says it does */
+#g-marker.new .d { animation: g-ping 1.8s ease-out; }
+@keyframes g-ping {
+  0% { transform: rotate(45deg) scale(2.2); }
+  100% { transform: rotate(45deg) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #g-marker .ring { animation: none; opacity: 0; }
+  #g-marker.new .d { animation: none; }
 }
 #g-toast {
-  left: 50%; top: 9vh; transform: translateX(-50%); width: min(640px, calc(100vw - 32px)); text-align: center; color: #fff;
-  font-size: 17px; line-height: 1.5; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.8); opacity: 0; transition: opacity 0.6s;
+  display: none; box-sizing: border-box; max-width: 100%; padding: 10px 20px 9px; border-radius: 6px; background: rgba(24, 18, 12, 0.6);
+  text-align: center; color: #fff; font-size: 18px; line-height: 1.5; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  opacity: 0; transition: opacity 0.6s;
 }
+#g-toast.up { display: block; }
 #g-toast.on { opacity: 1; }
-#g-toast .ref { display: block; margin-top: 4px; color: var(--gold); font-size: 13px; font-variant: small-caps; letter-spacing: 0.08em; }
+#g-toast .ref { display: block; margin-top: 3px; color: var(--gold); font-size: 13px; font-variant: small-caps; letter-spacing: 0.08em; }
 #g-chapter {
   inset: 0; display: grid; place-content: center; text-align: center; color: #fff; opacity: 0; transition: opacity 1.4s; z-index: 9;
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.7);
@@ -161,18 +194,33 @@ export function createUI({ touch = false } = {}) {
   const fade = el('div', 'g-fade');
   const objective = el('div', 'g-objective');
   objective.setAttribute('role', 'status');
+  // (the prompt and the line of scripture are stacked low on the screen, the prompt above)
+  const low = el('div', 'g-low');
   const prompt = el('div', 'g-prompt');
   const toast = el('div', 'g-toast');
+  low.append(prompt, toast);
   const marker = el('div', 'g-marker');
-  marker.innerHTML = '<div class="d"></div><div class="m"></div>';
+  marker.innerHTML = '<div class="ring"></div><div class="d"></div><div class="a"></div><div class="m"></div>';
   const markerText = marker.querySelector('.m');
   const card = el('div', 'g-card');
   const chapter = el('div', 'g-chapter');
   const title = el('div', 'g-title', 'g-screen');
   const end = el('div', 'g-end', 'g-screen');
   let toastTimer = 0;
+  let toastGone = 0;
   let objectiveText = null;
+  /** A new thing to do has been said, and the marker has not yet been shown for it; and until when it says "Go here". */
+  let markerNew = false;
+  let goHereUntil = 0;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  /** Takes the line of scripture away: fading (and then giving up its room), or at once. */
+  const hideToast = (atOnce) => {
+    clearTimeout(toastTimer);
+    clearTimeout(toastGone);
+    toast.classList.remove('on');
+    if (atOnce) toast.classList.remove('up');
+    else toastGone = setTimeout(() => toast.classList.remove('up'), 600);
+  };
 
   return {
     touch,
@@ -184,6 +232,8 @@ export function createUI({ touch = false } = {}) {
        * are listed under it, the one at `at` lit, and `onPick(i)` is told if one is clicked.
        */
       show({ text, ref = '', who = '', kind = ref ? 'scripture' : 'thought', hint = touch ? 'Tap to continue' : 'E or click to continue', answers = null, at = 0, onPick = null }) {
+        // (a card lies where the line of scripture does: the line goes)
+        hideToast(true);
         card.className = `g-layer on ${kind}`;
         const list = answers ? `<div class="answers">${answers.map((a, i) => `<div class="answer${i === at ? ' at' : ''}" data-i="${i}"><b>${i + 1}</b>${esc(a)}</div>`).join('')}</div>` : '';
         card.innerHTML = `${who ? `<div class="who">${esc(who)}</div>` : ''}<div class="text">${esc(text)}</div>${list}${ref ? `<div class="ref">${esc(ref)}</div>` : ''}<div class="hint">${esc(hint)}</div>`;
@@ -206,6 +256,7 @@ export function createUI({ touch = false } = {}) {
           // (reading its width starts the animation again from the beginning)
           void objective.offsetWidth;
           objective.classList.add('new');
+          markerNew = true;
         }
       }
       objectiveText = text || null;
@@ -215,19 +266,44 @@ export function createUI({ touch = false } = {}) {
       if (label) prompt.innerHTML = `<kbd>${touch ? 'Tap' : 'E'}</kbd>${esc(label)}`;
       prompt.classList.toggle('on', !!label);
     },
-    /** The way-marker: where on the screen, and how far in metres; null to hide it. */
-    marker(x, y, metres) {
+    /**
+     * The way-marker: where on the screen, and how far in metres; null to hide it. `turn` is given when the place is
+     * off the picture and the marker lies at its edge: the angle on the screen (0 to the right, a quarter turn down)
+     * to where the place is, shown as an arrow. For a few seconds after a new thing to do is said it reads "Go here".
+     */
+    marker(x, y, metres, turn = null) {
       if (x == null) return void marker.classList.remove('on');
+      if (markerNew) {
+        markerNew = false;
+        goHereUntil = performance.now() + 6000;
+        marker.classList.remove('new');
+        void marker.offsetWidth;
+        marker.classList.add('new');
+      }
       marker.classList.add('on');
+      marker.classList.toggle('edge', turn != null);
+      if (turn != null) marker.style.setProperty('--turn', `${turn.toFixed(2)}rad`);
       marker.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
-      markerText.textContent = metres > 12 ? `${Math.round(metres)} m` : '';
+      const far = metres > 12 ? `${Math.round(metres)} m` : '';
+      const text = performance.now() < goHereUntil ? `Go here${far ? ` · ${far}` : ''}` : far;
+      if (markerText.textContent !== text) markerText.textContent = text;
     },
-    /** A line of scripture at the top, gone after a while: for what happens while you are moving. */
+    /**
+     * A line of scripture low on the screen, gone after a while: for what happens while you are moving. With no
+     * text, the one that is up is taken away at once.
+     */
     toast(text, ref = '', seconds = 7) {
-      toast.innerHTML = `${esc(text)}${ref ? `<span class="ref">${esc(ref)}</span>` : ''}`;
-      toast.classList.add('on');
+      if (!text) return void hideToast(true);
       clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.remove('on'), seconds * 1000);
+      clearTimeout(toastGone);
+      toast.innerHTML = `${esc(text)}${ref ? `<span class="ref">${esc(ref)}</span>` : ''}`;
+      if (!toast.classList.contains('up')) {
+        toast.classList.add('up');
+        // (reading its width lets it fade in from where it was not)
+        void toast.offsetWidth;
+      }
+      toast.classList.add('on');
+      toastTimer = setTimeout(() => hideToast(false), seconds * 1000);
     },
     fade(to, seconds = 1) {
       fade.style.transition = `opacity ${seconds}s ease`;

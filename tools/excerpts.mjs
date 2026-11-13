@@ -1,19 +1,28 @@
 // Checks that every card that shows less than a whole verse shows the verse's own words: each excerpt's pieces
 // (between its "…") are found in the verse, in order; and each verse with a word left out, with the right word put
-// back, is an excerpt of its verse too. Fails if one is not.
+// back, is an excerpt of its verse too. A card under a speaker's name (`who`) need not mark with "…" what it leaves
+// off, the name standing in its place: for each of those, the words left off are listed, to be read over. Fails if
+// one is not the verse's words.
 //   node tools/excerpts.mjs
-import { BLANKS, EXCERPTS, VERSES } from '../src/game/scripture-daniel.js';
+import { BLANKS, EXCERPTS, SAID, SPEAKERS, VERSES } from '../src/game/scripture-daniel.js';
 
 let bad = 0;
-/** Whether `text` is the verse's own words in order, with "…" where any are left out. */
-function check(name, verse, text) {
+const names = new Set(Object.values(SPEAKERS));
+/** Whether `text` is the verse's own words in order, with "…" where any are left out (or, under a name, without). */
+function check(name, verse, text, who = '') {
   const whole = VERSES[verse];
   if (!whole) {
     console.log(`${name}: no verse ${verse}`);
     bad++;
     return;
   }
+  if (who && !names.has(who)) {
+    console.log(`${name} (${verse}): "${who}" is not one of the speakers`);
+    bad++;
+    return;
+  }
   let from = 0;
+  const left = [];
   for (const piece of text.split('…').map((p) => p.trim()).filter(Boolean)) {
     const at = whole.indexOf(piece, from);
     if (at < 0) {
@@ -21,23 +30,31 @@ function check(name, verse, text) {
       bad++;
       return;
     }
+    if (whole.slice(from, at).trim()) left.push(whole.slice(from, at).trim());
     from = at + piece.length;
   }
-  if (!text.includes('…') && text !== whole) {
+  if (whole.slice(from).trim()) left.push(whole.slice(from).trim());
+  if (!who && !text.includes('…') && text !== whole) {
     console.log(`${name} (${verse}): shorter than the verse, but nothing marks where`);
     bad++;
     return;
   }
-  console.log(`${name} (${verse}): the verse's own words`);
+  console.log(`${name} (${verse}): the verse's own words${who ? `, under "${who}"; left off: ${left.length ? left.map((l) => `"${l}"`).join(' … ') : 'nothing'}` : ''}`);
 }
-for (const [key, e] of Object.entries(EXCERPTS)) check(key, e.verse, e.text);
+for (const [key, e] of Object.entries(EXCERPTS)) check(key, e.verse, e.text, e.who);
 for (const [key, b] of Object.entries(BLANKS)) {
   if ((b.text.match(/_____/g) ?? []).length !== 1) {
     console.log(`${key}: should have one word left out`);
     bad++;
     continue;
   }
-  check(`${key} (filled)`, b.verse, b.text.replace('_____', b.answers[b.right]));
+  check(`${key} (filled)`, b.verse, b.text.replace('_____', b.answers[b.right]), b.who);
+  if (b.said && !(EXCERPTS[b.said]?.verse === b.verse && EXCERPTS[b.said].who === b.who)) {
+    console.log(`${key}: "${b.said}" is not what ${b.who} says in ${b.verse}`);
+    bad++;
+  }
 }
+// (a verse shown whole under a name is nothing but the verse)
+for (const [verse, who] of Object.entries(SAID)) check(`${verse} (whole)`, verse, VERSES[verse] ?? '', who);
 console.log(bad ? `${bad} wrong` : 'all are the scripture as written');
 process.exit(bad ? 1 : 0);

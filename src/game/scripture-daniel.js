@@ -39,31 +39,64 @@ export const VERSES = {
 export const daniel = scripture('Daniel', VERSES);
 
 /**
+ * Who speaks in the chapter, as a card names them over what they say. The names are not the scripture's words (they
+ * stand where it says who spoke: "Nebuchadnezzar spake and said unto them,"); what is under them is.
+ */
+export const SPEAKERS = {
+  herald: 'The herald',
+  chaldeans: 'Certain Chaldeans',
+  king: 'Nebuchadnezzar',
+  three: 'Shadrach, Meshach, and Abednego',
+  counsellors: 'The king’s counsellors',
+};
+const { herald, chaldeans, king, three, counsellors } = SPEAKERS;
+
+/** The verses that are, whole, what one of them says: shown whole, under the name. */
+export const SAID = { '3:5': herald, '3:6': herald, '3:12': chaldeans, '3:17': three, '3:18': three };
+
+/**
  * Parts of verses, where the story shows less than the whole: the verse's own words, in order, with "…" where words
- * are left out (a list said over again, or what has just been read). Each has its own recording (`voice`), since it
- * is not the verse read whole. tools/excerpts.mjs checks every one against the verse.
+ * are left out (a list said over again, or what has just been read). One with `who` is what that one says, shown
+ * under their name: the words that only tell who speaks are left off, and no "…" marks it, since the name does.
+ * Each has its own recording (`voice`), since it is not the verse read whole. tools/excerpts.mjs checks every one
+ * against the verse, and lists the words each name stands in place of.
  */
 export const EXCERPTS = {
   '3:3': { verse: '3:3', text: 'Then the princes, the governors, and captains … and all the rulers of the provinces, were gathered together unto the dedication of the image that Nebuchadnezzar the king had set up; and they stood before the image that Nebuchadnezzar had set up.' },
+  '3:4-said': { verse: '3:4', who: herald, text: 'To you it is commanded, O people, nations, and languages,' },
   '3:7': { verse: '3:7', text: 'Therefore at that time, when all the people heard the sound of the cornet … and all kinds of musick, all the people, the nations, and the languages, fell down and worshipped the golden image that Nebuchadnezzar the king had set up.' },
   '3:12-end': { verse: '3:12', text: '… they serve not thy gods, nor worship the golden image which thou hast set up.' },
-  '3:15': { verse: '3:15', text: 'Now if ye be ready that at what time ye hear the sound of the cornet … and all kinds of musick, ye fall down and worship the image which I have made; well: but if ye worship not, ye shall be cast the same hour into the midst of a burning fiery furnace; and who is that God that shall deliver you out of my hands?' },
-  '3:29-end': { verse: '3:29', text: '… because there is no other God that can deliver after this sort.' },
+  '3:14-said': { verse: '3:14', who: king, text: 'Is it true, O Shadrach, Meshach, and Abednego, do not ye serve my gods, nor worship the golden image which I have set up?' },
+  '3:15': { verse: '3:15', who: king, text: 'Now if ye be ready that at what time ye hear the sound of the cornet … and all kinds of musick, ye fall down and worship the image which I have made; well: but if ye worship not, ye shall be cast the same hour into the midst of a burning fiery furnace; and who is that God that shall deliver you out of my hands?' },
+  '3:16-said': { verse: '3:16', who: three, text: 'O Nebuchadnezzar, we are not careful to answer thee in this matter.' },
+  // the king and his counsellors (3:24), each in turn; and what he saw (3:25)
+  '3:24-a': { verse: '3:24', text: 'Then Nebuchadnezzar the king was astonied, and rose up in haste …' },
+  '3:24-said': { verse: '3:24', who: king, text: 'Did not we cast three men bound into the midst of the fire?' },
+  '3:24-answer': { verse: '3:24', who: counsellors, text: 'True, O king.' },
+  '3:25-said': { verse: '3:25', who: king, text: 'Lo, I see four men loose, walking in the midst of the fire, and they have no hurt; and the form of the fourth is like the Son of God.' },
+  // the king at the mouth of the furnace (3:26): that he came near, what he said, and what they did
+  '3:26-a': { verse: '3:26', text: 'Then Nebuchadnezzar came near to the mouth of the burning fiery furnace …' },
+  '3:26-said': { verse: '3:26', who: king, text: 'Shadrach, Meshach, and Abednego, ye servants of the most high God, come forth, and come hither.' },
+  '3:26-end': { verse: '3:26', text: '… Then Shadrach, Meshach, and Abednego, came forth of the midst of the fire.' },
   // the four things the princes saw (3:27), one at a time
   '3:27-a': { verse: '3:27', text: '… upon whose bodies the fire had no power …' },
   '3:27-b': { verse: '3:27', text: '… nor was an hair of their head singed …' },
   '3:27-c': { verse: '3:27', text: '… neither were their coats changed …' },
   '3:27-d': { verse: '3:27', text: '… nor the smell of fire had passed on them.' },
+  '3:28-said': { verse: '3:28', who: king, text: 'Blessed be the God of Shadrach, Meshach, and Abednego, who hath sent his angel, and delivered his servants that trusted in him, and have changed the king’s word, and yielded their bodies, that they might not serve nor worship any god, except their own God.' },
+  '3:29-end': { verse: '3:29', who: king, text: '… because there is no other God that can deliver after this sort.' },
 };
 for (const [key, e] of Object.entries(EXCERPTS)) e.voice = `Daniel ${key} cut`;
 
 /**
  * Verses with a word left out, to be filled in from three (shortened with "…" where they are long). The right answer
- * is the word that was there; tools/excerpts.mjs checks that, put back, it is the verse's own words.
+ * is the word that was there; tools/excerpts.mjs checks that, put back, it is the verse's own words. Each is what
+ * someone says, and is shown under their name (`who`). The verse is then read whole: or, where the verse begins by
+ * telling who speaks, the part of it that is said (`said`, in EXCERPTS).
  */
 export const BLANKS = {
-  able: { verse: '3:17', text: 'If it be so, our God whom we serve is _____ to deliver us from the burning fiery furnace …', answers: ['asked', 'able', 'told'], right: 1 },
-  not: { verse: '3:18', text: 'But if _____, be it known unto thee, O king, that we will not serve thy gods …', answers: ['so', 'now', 'not'], right: 2 },
-  four: { verse: '3:25', text: 'He answered and said, Lo, I see _____ men loose, walking in the midst of the fire, and they have no hurt …', answers: ['three', 'four', 'two'], right: 1 },
-  trusted: { verse: '3:28', text: '… who hath sent his angel, and delivered his servants that _____ in him …', answers: ['trusted', 'hid', 'stood'], right: 0 },
+  able: { verse: '3:17', who: three, text: 'If it be so, our God whom we serve is _____ to deliver us from the burning fiery furnace …', answers: ['asked', 'able', 'told'], right: 1 },
+  not: { verse: '3:18', who: three, text: 'But if _____, be it known unto thee, O king, that we will not serve thy gods …', answers: ['so', 'now', 'not'], right: 2 },
+  four: { verse: '3:25', who: king, said: '3:25-said', text: 'Lo, I see _____ men loose, walking in the midst of the fire, and they have no hurt …', answers: ['three', 'four', 'two'], right: 1 },
+  trusted: { verse: '3:28', who: king, said: '3:28-said', text: '… who hath sent his angel, and delivered his servants that _____ in him …', answers: ['trusted', 'hid', 'stood'], right: 0 },
 };

@@ -41,6 +41,8 @@ body.touch #g-prompt {
   border: 1px solid rgba(227, 189, 109, 0.6);
 }
 body.touch #g-prompt.on { pointer-events: auto; }
+/* (the line of scripture, low on the screen, keeps clear of the thumb that walks and of the button that runs) */
+@media (orientation: landscape) { body.touch #g-low { width: min(680px, calc(100vw - 280px)); } }
 body.touch #g-objective { left: calc(12px + env(safe-area-inset-left)); }
 @media (max-height: 500px) {
   body.touch #g-card { bottom: 12px; padding: 12px 18px 8px; }
@@ -52,8 +54,9 @@ body.touch #g-objective { left: calc(12px + env(safe-area-inset-left)); }
   body.touch #g-objective .label { display: none; }
   body.touch #g-objective .text { font-size: 15px; }
   body.touch #g-objective ul { font-size: 13px; margin-top: 6px; padding-top: 6px; gap: 2px; }
-  body.touch #g-prompt { bottom: 20vh; font-size: 16px; }
-  body.touch #g-toast { top: 6vh; font-size: 15px; }
+  body.touch #g-low { bottom: 12px; gap: 8px; }
+  body.touch #g-prompt { font-size: 16px; }
+  body.touch #g-toast { font-size: 15px; line-height: 1.4; padding: 7px 14px 6px; }
 }
 `;
 

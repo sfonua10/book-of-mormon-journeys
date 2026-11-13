@@ -57,7 +57,7 @@ const STORIES = {
   'fiery-furnace': {
     file: 'src/game/daniel.js',
     scripture: ['src/game/scripture-daniel.js', 'daniel'],
-    key: ['3:1', '3:6', '3:12', '3:15', '3:16', '3:17', '3:18', '3:25', '3:27', '3:28'],
+    key: ['3:1', '3:6', '3:12', '3:15', '3:16-said', '3:17', '3:18', '3:25-said', '3:27', '3:28-said'],
     names: { Nebuchadnezzar: 'Neb-uh-kud-nezz-er', Shadrach: 'Shay-drak', Meshach: 'Mee-shak', Abednego: 'Uh-bed-nih-go', Chaldeans: 'Kal-dee-uns', Dura: 'Doo-ruh' },
   },
 };
@@ -86,7 +86,8 @@ const add = (id, ref, words) => {
 };
 const said = [
   ...[...story.matchAll(/(?:verses?|line)\((?:c, )?'(\d+:\d+)'(?:, '(\d+:\d+)')?/g)].map((m) => ({ at: m.index, first: m[1], last: m[2] ?? m[1] })),
-  ...[...story.matchAll(/fill\(c, '(\w+)'\)/g)].filter((m) => BLANKS[m[1]]).map((m) => ({ at: m.index, first: BLANKS[m[1]].verse, last: BLANKS[m[1]].verse })),
+  // (a verse with a word left out is then read whole: or, where it is shown under a speaker's name, what is said in it)
+  ...[...story.matchAll(/fill\(c, '(\w+)'\)/g)].filter((m) => BLANKS[m[1]]).map((m) => (BLANKS[m[1]].said ? { at: m.index, part: BLANKS[m[1]].said } : { at: m.index, first: BLANKS[m[1]].verse, last: BLANKS[m[1]].verse })),
   ...Object.keys(EXCERPTS).filter((k) => story.includes(`'${k}'`)).map((k) => ({ at: story.indexOf(`'${k}'`), part: k })),
 ].sort((a, b) => a.at - b.at);
 for (const s of said) {
