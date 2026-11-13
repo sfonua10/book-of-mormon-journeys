@@ -1,4 +1,4 @@
-// Babylon, for the journeys told there (Daniel 3), on its own river plain (world.js, the 'plain' land). It is a
+// Babylon, for the journeys told there (Daniel 3, and Daniel 6), on its own river plain (world.js, the 'plain' land). It is a
 // `look` for createCity (city.js), made with the same boxes, so what is seen is also what is walked against.
 //
 // What is known of it about 600 BC, and so what is built (the README says what is a guess):
@@ -16,7 +16,7 @@
 // and the breadth thereof six cubits" (3:1), 27.4 m by 2.74 m; the king's seat; and the burning fiery furnace, a
 // kiln of brick with a door in its side (3:26) and an opening at its top.
 import { PLAIN } from './places.js';
-import { footing, ground, house, MOTIF, PART } from './city.js';
+import { footing, ground, house, MOTIF, PART, ROOF, WOOD } from './city.js';
 
 // baked brick; the mud plaster of houses; gold; brick blackened by fire; the limestone of the road and its red edge
 const BRICK = [0.72, 0.58, 0.42];
@@ -364,6 +364,128 @@ function kiln(b, random) {
   }
 }
 
+/**
+ * Where the things of Daniel 6 are, on the plain before the gate, in (u, v). Nothing is told of where Daniel's house
+ * stood, or the den, or where the king sat: they are put where the image and the furnace of Daniel 3 stood, a
+ * lifetime before, and the king's seat is where it was.
+ */
+export const IN_DARIUS = {
+  /**
+   * Daniel's house: one room, its windows in the wall towards the going down of the sun (+u, as the sun goes in this
+   * land: sky.js), its door in its -v wall. u and v: its footprint; how thick its walls are; how high its ceiling;
+   * the door (where along u, half its width, its height); the windows (where along v, half their width, the height
+   * of their sills and of their heads).
+   */
+  house: { u: [131, 141], v: [-7, 7], wall: 0.6, tall: 3.6, door: { at: 134.4, half: 0.85, tall: 2.3 }, windows: [-3.6, 0, 3.6], windowHalf: 0.8, sill: 0.85, lintel: 2.45 },
+  /**
+   * The den of lions: walled with brick and roofed, with a mouth in the middle of its roof that a stone is laid
+   * upon (6:17). Its middle; its half-sizes; how thick its walls are; how high its roof is within, and how thick;
+   * how wide its mouth is.
+   */
+  den: { at: PLAIN.kiln.at, half: [11, 9], wall: 1.4, tall: 4.8, slab: 0.8, mouth: 3.2 },
+};
+
+/**
+ * The den of lions (Daniel 6:16–17, 6:23–24): "cast him into the den", "the mouth of the den", "take Daniel up out
+ * of the den", "the bottom of the den". So it is made a place gone down into from above: four thick walls of brick
+ * and a roof over them, with one opening in the roof, its mouth, and a ramp up its side to the roof. Within there is
+ * nothing but its floor of trodden earth. What such a den was is not known (the README says so); kings of Assyria
+ * and Babylon did keep lions.
+ */
+function den(b) {
+  const { at: [mu, mv], half: [hu, hv], wall: T, tall, slab, mouth } = IN_DARIUS.den;
+  const [a, c, d, e] = [mu - hu, mu + hu, mv - hv, mv + hv];
+  const base = footing(a, c, d, e);
+  const top = base + tall;
+  const roof = top + slab;
+  const DARK = [0.5, 0.41, 0.32];
+  const wall = brick(0.94, base, { colour: DARK, roofColour: [0.62, 0.52, 0.4] });
+  b.box(a, c, d, d + T, base - 1.6, roof, wall);
+  b.box(a, c, e - T, e, base - 1.6, roof, wall);
+  b.box(a, a + T, d + T, e - T, base - 1.6, roof, wall);
+  b.box(c - T, c, d + T, e - T, base - 1.6, roof, wall);
+  // the roof: four slabs round the mouth, each with its underside (which is the den's ceiling)
+  const m = mouth / 2;
+  for (const [p0, p1, q0, q1] of [[a + T, c - T, d + T, mv - m], [a + T, c - T, mv + m, e - T], [a + T, mu - m, mv - m, mv + m], [mu + m, c - T, mv - m, mv + m]]) {
+    b.box(p0, p1, q0, q1, top, roof, wall);
+    b.quad([[p0, top, q0], [p1, top, q0], [p1, top, q1], [p0, top, q1]], [0, -1, 0], PART.BRICK, [0.36, 0.3, 0.25], [[p0, q0], [p1, q0], [p1, q1], [p0, q1]], 0.94);
+  }
+  // its floor, of trodden earth: laid over the ground, so that it is as dark as the den is (the ground itself is
+  // lit by the open sky, roof or no roof)
+  const f = base + 0.04;
+  b.quad([[a + T, f, d + T], [a + T, f, e - T], [c - T, f, e - T], [c - T, f, d + T]], [0, 1, 0], PART.ROOF, [0.5, 0.42, 0.33], [[a, d], [a, e], [c, e], [c, d]], 0.92);
+  // a low kerb of stone at the roof's edge, all round
+  for (const [p0, p1, q0, q1] of [[a, c, d, d + 0.5], [a, c, e - 0.5, e], [a, a + 0.5, d + 0.5, e - 0.5], [c - 0.5, c, d + 0.5, e - 0.5]]) {
+    b.box(p0, p1, q0, q1, roof, roof + 0.4, { part: PART.STONE, colour: [0.7, 0.64, 0.54], seed: 0.93, base: roof, solid: false, roofPart: PART.STONE, roofColour: [0.7, 0.64, 0.54] });
+  }
+  // the ramp up to the roof, on the side towards the king's seat (-v), by which one is brought to its mouth
+  const [r0, r1] = [mu - 2.6, mu + 2.6];
+  const foot = d - 12;
+  const g0 = ground(mu, foot) + 0.05;
+  b.quad([[r0, roof, d], [r0, g0, foot], [r1, g0, foot], [r1, roof, d]], [0, 0.9, -0.44], PART.BRICK, [0.62, 0.5, 0.38], [[r0, 0], [r0, 13.3], [r1, 13.3], [r1, 0]], 0.96);
+  for (const [u, n] of [[r0, -1], [r1, 1]]) b.tri([[u, base - 0.4, d], [u, roof, d], [u, g0 - 0.4, foot]], [n, 0, 0], PART.BRICK, [0.62, 0.5, 0.38], [[d, 0], [d, 5.6], [foot, 0]], 0.97);
+}
+
+/**
+ * Daniel's house (6:10): "he went into his house; and his windows being open in his chamber toward Jerusalem".
+ * One room that can be walked into by its door, with three windows in one wall that are truly open (the wall is
+ * built in pieces round them), their shutters standing back; within, a mat before the middle window, a low table
+ * with a lamp on it, jars, and a mat to sleep on.
+ */
+function chamber(b, random) {
+  const { u: [u0, u1], v: [v0, v1], wall: T, tall, door, windows, windowHalf: wh, sill, lintel } = IN_DARIUS.house;
+  const base = footing(u0, u1, v0, v1);
+  const top = base + tall;
+  const colour = PLASTERS[2];
+  const seed = 0.42;
+  const plaster = { colour, seed, base, roofPart: PART.PLASTER, roofColour: colour };
+  const wood = { part: PART.WOOD, colour: WOOD, seed: 0.44, base, solid: false, roofPart: PART.WOOD, roofColour: WOOD };
+  const [y0, y1] = [base - 1.6, top + 0.95];
+  // the wall away from the windows (-u), and the +v wall, whole
+  b.box(u0, u0 + T, v0, v1, y0, y1, plaster);
+  b.box(u0 + T, u1, v1 - T, v1, y0, y1, plaster);
+  // the -v wall, in two with the doorway between and the wall over it
+  const over = base + door.tall;
+  b.box(u0 + T, door.at - door.half, v0, v0 + T, y0, y1, plaster);
+  b.box(door.at + door.half, u1, v0, v0 + T, y0, y1, plaster);
+  b.box(door.at - door.half, door.at + door.half, v0, v0 + T, over, y1, plaster);
+  b.quad([[door.at - door.half, over, v0], [door.at + door.half, over, v0], [door.at + door.half, over, v0 + T], [door.at - door.half, over, v0 + T]], [0, -1, 0], PART.WOOD, WOOD, [[0, 0], [1.7, 0], [1.7, T], [0, T]], 0.44);
+  // (its door, of planks, standing open against the wall outside; a stone at its foot)
+  b.box(door.at + door.half + 0.05, door.at + door.half + 0.13, v0 - door.half * 2, v0, base - 0.1, over - 0.06, wood);
+  b.box(door.at - door.half - 0.3, door.at + door.half + 0.3, v0 - 0.5, v0 + T, base - 0.4, base + 0.06, { part: PART.STONE, colour: [0.7, 0.64, 0.54], seed: 0.45, base, solid: false, roofPart: PART.STONE, roofColour: [0.7, 0.64, 0.54] });
+  // the wall of the windows (+u): piers, and at each window the wall under its sill and over its head
+  let from = v0 + T;
+  for (const w of windows) {
+    b.box(u1 - T, u1, from, w - wh, y0, y1, plaster);
+    b.box(u1 - T, u1, w - wh, w + wh, y0, base + sill, { ...plaster, roofPart: PART.WOOD, roofColour: WOOD });
+    b.box(u1 - T, u1, w - wh, w + wh, base + lintel, y1, plaster);
+    b.quad([[u1 - T, base + lintel, w - wh], [u1 - T, base + lintel, w + wh], [u1, base + lintel, w + wh], [u1, base + lintel, w - wh]], [0, -1, 0], PART.WOOD, WOOD, [[0, 0], [1.6, 0], [1.6, T], [0, T]], 0.44);
+    // (its two shutters, of wood, standing open against the wall outside)
+    for (const side of [-1, 1]) {
+      const s0 = w + side * wh;
+      b.box(u1 + 0.03, u1 + 0.1, Math.min(s0, s0 + side * wh), Math.max(s0, s0 + side * wh), base + sill, base + lintel, { ...wood, seed: 0.46 + side * 0.01 });
+    }
+    from = w + wh;
+  }
+  b.box(u1 - T, u1, from, v1 - T, y0, y1, plaster);
+  // the roof, a parapet's height below the top of the walls; under it the ceiling's beams; a floor of beaten earth
+  b.box(u0 + T, u1 - T, v0 + T, v1 - T, top, top + 0.4, { ...plaster, roofPart: PART.ROOF, roofColour: ROOF });
+  b.quad([[u0 + T, top, v0 + T], [u1 - T, top, v0 + T], [u1 - T, top, v1 - T], [u0 + T, top, v1 - T]], [0, -1, 0], PART.WOOD, [0.34, 0.25, 0.17], [[u0, 0], [u1, 0], [u1, 6], [u0, 6]], seed);
+  const f = base + 0.03;
+  b.quad([[u0 + T, f, v0 + T], [u0 + T, f, v1 - T], [u1 - T, f, v1 - T], [u1 - T, f, v0 + T]], [0, 1, 0], PART.ROOF, [0.6, 0.5, 0.38], [[u0, v0], [u0, v1], [u1, v1], [u1, v0]], 0.47);
+  // within: the mat he kneels on, before the middle window; a mat to sleep on; a low table with a lamp; jars
+  const cloth = (p0, p1, q0, q1, lit, s) => b.box(p0, p1, q0, q1, base, base + 0.08, { part: PART.CLOTH, colour: lit.map((x) => x * 0.86), seed: s, base, solid: false, roofPart: PART.CLOTH, roofColour: lit });
+  cloth(u1 - T - 2.6, u1 - T - 0.9, windows[1] - 0.6, windows[1] + 0.6, [0.6, 0.26, 0.2], 0.48);
+  cloth(u0 + T + 0.3, u0 + T + 1.2, v1 - T - 2.6, v1 - T - 0.5, [0.46, 0.4, 0.3], 0.49);
+  const [tu, tv] = [u0 + T + 0.7, v0 + T + 3.2];
+  b.box(tu - 0.4, tu + 0.4, tv - 0.6, tv + 0.6, base - 0.2, base + 0.45, { ...wood, seed: 0.5 });
+  b.box(tu - 0.07, tu + 0.07, tv - 0.07, tv + 0.07, base + 0.45, base + 0.56, { colour: [0.62, 0.4, 0.26], seed: 0.51, base, solid: false, roofPart: PART.LAMP, roofColour: [0.62, 0.4, 0.26] });
+  const jar = (u, v, r, h) => b.box(u - r, u + r, v - r, v + r, base - 0.2, base + h, { colour: [0.62, 0.4, 0.26], seed: random(), base, solid: false, roofPart: PART.DARK });
+  jar(u0 + T + 0.5, v0 + T + 0.5, 0.3, 0.95);
+  jar(u0 + T + 1.25, v0 + T + 0.45, 0.24, 0.75);
+  jar(u0 + T + 0.5, v1 - T - 0.45, 0.27, 0.85);
+}
+
 /** Babylon, for createCity. Its one lit room is the furnace: the light of the fire on its own walls. */
 export const BABYLON = {
   name: 'babylon',
@@ -390,4 +512,29 @@ export const BABYLON = {
     })(),
   },
   room: 'furnace',
+};
+
+/**
+ * Babylon as Daniel 6 has it, in the days of Darius: the same city, gate and king's seat, and on the plain, where the
+ * image and the furnace stood, Daniel's house and the den of lions. Its rooms: his chamber (shaded by its roof; the
+ * story brings light into it) and the den (as dark as the hour is).
+ */
+export const BABYLON_DARIUS = {
+  ...BABYLON,
+  outside(b, random) {
+    seat(b);
+    den(b);
+    chamber(b, random);
+  },
+  rooms: {
+    chamber: (() => {
+      const { u: [u0, u1], v: [v0, v1], wall: T } = IN_DARIUS.house;
+      return { u: (u0 + u1) / 2, v: (v0 + v1) / 2, half: [(u1 - u0) / 2 - T + 0.05, (v1 - v0) / 2 - T + 0.05], up: 1.3, reach: 0, shade: 0.5 };
+    })(),
+    den: (() => {
+      const { at: [mu, mv], half: [hu, hv], wall: T } = IN_DARIUS.den;
+      return { u: mu, v: mv, half: [hu - T + 0.05, hv - T + 0.05], up: 2.4, reach: 0, shade: 0.9 };
+    })(),
+  },
+  room: 'chamber',
 };

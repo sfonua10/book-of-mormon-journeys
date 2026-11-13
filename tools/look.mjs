@@ -65,7 +65,8 @@ try {
   process.exit(1);
 }
 console.log(`ready in ${Date.now() - t0} ms`);
-await page.addStyleTag({ content: '#start { display: none !important; }' });
+// (the list of journeys is not what a still is of)
+await page.addStyleTag({ content: '#start, #g-title { display: none !important; }' });
 const pre = flag('eval', '');
 if (pre) console.log('eval:', JSON.stringify(await page.evaluate(`(async () => { const tg = window.__tg; ${pre} })()`)));
 

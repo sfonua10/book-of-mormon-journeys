@@ -1,10 +1,14 @@
 // Checks that every card that shows less than a whole verse shows the verse's own words: each excerpt's pieces
 // (between its "…") are found in the verse, in order; and each verse with a word left out, with the right word put
 // back, is an excerpt of its verse too. A card under a speaker's name (`who`) need not mark with "…" what it leaves
-// off, the name standing in its place: for each of those, the words left off are listed, to be read over. Fails if
-// one is not the verse's words.
+// off, the name standing in its place: for each of those, the words left off are listed, to be read over. The
+// verses set side by side at the end of the Daniel 6 journey (PAIRS: Daniel 6 beside the Gospels) are checked the
+// same way, each against its own verse. Fails if one is not the verse's words.
 //   node tools/excerpts.mjs
-import { BLANKS, EXCERPTS, SAID, SPEAKERS, VERSES } from '../src/game/scripture-daniel.js';
+import { BLANKS, EXCERPTS, GOSPELS, PAIRS, SAID, SPEAKERS, VERSES as DANIEL } from '../src/game/scripture-daniel.js';
+
+// (every verse a card may quote: Daniel's by chapter and verse, the Gospels' by book as well)
+const VERSES = { ...DANIEL, ...GOSPELS };
 
 let bad = 0;
 const names = new Set(Object.values(SPEAKERS));
@@ -54,6 +58,10 @@ for (const [key, b] of Object.entries(BLANKS)) {
     bad++;
   }
 }
+PAIRS.forEach(([a, b], i) => {
+  check(`pair ${i + 1}, Daniel`, a.verse, a.text);
+  check(`pair ${i + 1}, beside it`, b.verse, b.text);
+});
 // (a verse shown whole under a name is nothing but the verse)
 for (const [verse, who] of Object.entries(SAID)) check(`${verse} (whole)`, verse, VERSES[verse] ?? '', who);
 console.log(bad ? `${bad} wrong` : 'all are the scripture as written');

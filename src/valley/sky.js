@@ -225,12 +225,17 @@ export const SUNSET = 20.4;
  * The sun at an hour, 12 to sunset: sets `out` to its direction and returns its degrees above the horizon. It
  * comes down on the left of the way the valley runs and swings round towards it, so by evening it stands low over
  * the mountains.
+ *
+ * An hour before 12 is the morning (a journey that has one: Daniel 6:19): the evening turned about, the sun as far
+ * the other way round and as high as it would be that long after noon, six hours of it from its rising. So the
+ * light of early morning is that of evening, come from the other side. From 12 on nothing is changed by it.
  */
 function sunAt(hour, out) {
   const [dx, dz] = HERO;
-  const t = THREE.MathUtils.clamp((hour - 12) / 8.5, 0, 1);
+  const morning = hour < 12;
+  const t = THREE.MathUtils.clamp(morning ? (12 - hour) / 6 : (hour - 12) / 8.5, 0, 1);
   const e = 64 - 62 * t ** 1.25;
-  const left = THREE.MathUtils.degToRad(88 - 64 * t);
+  const left = THREE.MathUtils.degToRad(morning ? 88 + 64 * t : 88 - 64 * t);
   const el = THREE.MathUtils.degToRad(e);
   const hx = Math.cos(left) * dx + Math.sin(left) * dz;
   const hz = Math.cos(left) * dz - Math.sin(left) * dx;

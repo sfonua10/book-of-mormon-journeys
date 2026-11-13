@@ -1,6 +1,7 @@
-// Checks the list of journeys (the first screen), headless, against dist/: that it lists the first journey and the
-// one to come, that a place kept before there were other journeys is brought over and gone on from, and that the end
-// of a journey marks it finished and leads back to the list.
+// Checks the list of journeys (the first screen), headless, against dist/: that it lists the journeys and the one to
+// come, that a place kept before there were other journeys is brought over and gone on from, that the end of a
+// journey marks it finished and leads back to the list, and that a journey's end shows its verses side by side
+// where it has them (Daniel 6).
 //
 //   npm run build && node tools/journeys.mjs [--shots]
 import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs';
@@ -66,6 +67,8 @@ const list = () =>
       buttons: [...li.querySelectorAll('button')].map((b) => b.textContent),
     })),
   }));
+/** The first journey's card (1 Nephi 3–4), wherever in the list it is. */
+const nephi = (shown) => shown.items.find((i) => i.who === 'Nephi');
 const keys = () => page.evaluate(() => Object.fromEntries(Object.entries(localStorage)));
 const ticks = (n) =>
   page.evaluate(async (count) => {
@@ -81,7 +84,8 @@ await page.evaluate(() => localStorage.clear());
 await open();
 let l = await list();
 check('the books are the first screen', l.on === true && l.heading === 'Scripture Journeys', l.heading);
-check('the page is named for the game', (await page.title()) === 'Scripture Journeys', await page.title());
+// (the game's name first, and after it what it is, for a search: index.html's title)
+check('the page is named for the game', (await page.title()).startsWith('Scripture Journeys: '), await page.title());
 check(
   'the five standard works are listed, in order, those with nothing yet as coming',
   l.works.join(', ') === 'Old Testament, New Testament:coming, Book of Mormon, Doctrine and Covenants:coming, Pearl of Great Price:coming',
@@ -94,7 +98,7 @@ check(
 );
 check(
   'and a card for each journey, with the face and name of the one it follows',
-  l.items.map((i) => `${i.who}:${i.no}:${i.buttons.join('|')}`).join(', ') === 'Daniel:Chapter 3:Play, Nephi:Chapters 3–4:Play',
+  l.items.map((i) => `${i.who}:${i.no}:${i.buttons.join('|')}`).join(', ') === 'Daniel:Chapter 3:Play, Daniel:Chapter 6:Play, Nephi:Chapters 3–4:Play',
   l.items,
 );
 await page.click('#g-title .twig:not(:disabled)');
@@ -106,7 +110,7 @@ await page.evaluate(() => localStorage.setItem('nephi-plates:beat', 'a2'));
 await open();
 l = await list();
 let k = await keys();
-check('the old place is offered', /^Continue/.test(l.items[1]?.buttons[0] ?? '') && l.items[1].buttons[1] === 'Start over', l.items[1]?.buttons);
+check('the old place is offered', /^Continue/.test(nephi(l)?.buttons[0] ?? '') && nephi(l).buttons[1] === 'Start over', nephi(l)?.buttons);
 check('it is kept under the new key', k['bom-journeys:plates-of-brass:beat'] === 'a2' && !('nephi-plates:beat' in k), k);
 if (shots) await page.screenshot({ path: join(out, '2-continue.png') });
 await page.click('#g-title button[data-id="plates-of-brass"][data-go="continue"]');
@@ -142,7 +146,7 @@ await Promise.all([page.waitForNavigation(), page.click('#g-end button[data-go="
 await ready();
 l = await list();
 check('Back to journeys shows the standard works', l.on === true && l.works.length === 5 && !/[?&](auto|beat|story|go)\b/.test(page.url()), page.url());
-check('with the journey ticked, to play again', /✓/.test(l.items[1]?.no ?? '') && l.items[1].buttons.join('|') === 'Play again', l.items[1]);
+check('with the journey ticked, to play again', /✓/.test(nephi(l)?.no ?? '') && nephi(l).buttons.join('|') === 'Play again', nephi(l));
 if (shots) await page.screenshot({ path: join(out, '4-finished.png') });
 
 // 5. a journey there is not falls back to the first; one asked for with ?go begins without the list
@@ -151,11 +155,32 @@ l = await list();
 check('an unknown ?story shows the list', l.on === true && l.works.length === 5, l);
 await open('story=fiery-furnace');
 l = await list();
-check('a journey asked for by name, in a book of one journey, shows the list', l.on === true && l.works.length === 5, l);
+check('a journey asked for by name shows the list', l.on === true && l.works.length === 5, l);
 await open('story=plates-of-brass&go=begin');
 await ticks(5);
 const went = await page.evaluate(() => ({ beat: window.__tg.director.beat, list: document.querySelector('#g-title')?.classList.contains('on') }));
 check('?go=begin begins at once', went.beat === 'a1' && !went.list && !/[?&]go=/.test(page.url()), { ...went, url: page.url() });
+
+// 6. the end of the Daniel 6 journey: its words, and four verses of Daniel each beside one of the Gospels
+await open('auto&story=lions-den&beat=a4-up');
+ended = false;
+for (let i = 0; i < 60 && !ended; i++) {
+  await ticks(60);
+  ended = await page.evaluate(() => window.__tg.director.ended);
+}
+check('the last beat of the Daniel 6 journey ends', ended);
+const beside = await page.evaluate(() => ({
+  heading: document.querySelector('#g-end h1')?.textContent,
+  pairs: [...document.querySelectorAll('#g-end .beside .pair')].map((p) => [...p.querySelectorAll('cite')].map((c) => c.textContent).join(' | ')),
+  ask: document.querySelector('#g-end .beside .ask')?.textContent ?? '',
+}));
+check('its end screen has its words', beside.heading === 'He Delivereth and Rescueth', beside.heading);
+check(
+  'and four verses of Daniel 6, each beside one of the Gospels',
+  beside.pairs.join('; ') === 'Daniel 6:4 | Luke 23:4; Daniel 6:14 | John 19:12; Daniel 6:17 | Matthew 27:66; Daniel 6:19 | Mark 16:2' && beside.ask.length > 0,
+  beside,
+);
+if (shots) await page.screenshot({ path: join(out, '5-daniel-6-end.png'), fullPage: true });
 
 check('no errors on the page', problems.length === 0, problems);
 await browser.close();
