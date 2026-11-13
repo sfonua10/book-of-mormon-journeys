@@ -3,6 +3,7 @@
 //
 //   node tools/narrate.mjs --voices                 the voices the account may use, with a link to hear each
 //   node tools/narrate.mjs --sample --voice <id>    one short verse, into shots/narration/, to hear a voice by
+//   node tools/narrate.mjs --say "some words" --as name --voice <id>   those words as written, into shots/narration/name.mp3
 //   node tools/narrate.mjs --dry                    what would be made, and what it would cost, without making it
 //   node tools/narrate.mjs --voice <id>             makes every recording there is not yet one of
 //
@@ -92,6 +93,14 @@ try {
   const total = todo.reduce((n, c) => n + c.text.length, 0);
   console.log(`${cards.length} cards in the story; ${cards.length - todo.length} already made; ${todo.length} to make, ${total} characters.`);
 
+  if (has('say')) {
+    // a few words of your own, as they are written, to try how something is said
+    if (!voice) throw new Error('Say which voice: --voice <id> (see --voices).');
+    const to = path.join(here, 'shots/narration', `${flag('as', 'say')}.mp3`);
+    await speak(flag('say'), to);
+    console.log(`${flag('say').length} characters → ${to}`);
+    process.exit(0);
+  }
   if (has('sample')) {
     if (!voice) throw new Error('Say which voice: --voice <id> (see --voices).');
     const card = cards.find((c) => c.id === flag('verse', '4:1')) ?? cards[0];
@@ -105,10 +114,17 @@ try {
   let left = has('left') ? Number(flag('left')) : Infinity;
   if (has('left')) console.log(`Supposing ${left} credits left.`);
   else if (KEY_) {
-    const sub = await (await call('/v1/user/subscription')).json();
-    left = sub.character_limit - sub.character_count;
-    const reset = sub.next_character_count_reset_unix ? new Date(sub.next_character_count_reset_unix * 1000).toDateString() : 'unknown';
-    console.log(`Plan: ${sub.tier}. ${left} of ${sub.character_limit} credits left; they come again on ${reset}.`);
+    try {
+      const sub = await (await call('/v1/user/subscription')).json();
+      left = sub.character_limit - sub.character_count;
+      const reset = sub.next_character_count_reset_unix ? new Date(sub.next_character_count_reset_unix * 1000).toDateString() : 'unknown';
+      console.log(`Plan: ${sub.tier}. ${left} of ${sub.character_limit} credits left; they come again on ${reset}.`);
+    } catch (e) {
+      // (a key that may not read the account: then say what is left with --left, or the free plan's whole month is supposed)
+      if (!/user_read/.test(e.message)) throw e;
+      left = 10000;
+      console.log(`The key may not read the account, so ${left} credits are supposed (say otherwise with --left <n>).`);
+    }
   } else console.log('No key in .env, so the allowance is not known: this is only the list.');
   const budget = left - Number(flag('keep', '300'));
 
