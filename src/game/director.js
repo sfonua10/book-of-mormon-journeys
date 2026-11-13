@@ -58,9 +58,17 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
       frozen++;
       pressed = false;
       ui.card.show({ text, ref, ...options });
+      // read aloud, where there is a recording of it (narration.js): the card then goes on by itself a moment
+      // after the reading ends, and a press still goes on at once
+      const voice = ref ? g.narration?.say(ref) : null;
+      let readAt = null;
       const shown = time;
-      await until(() => time - shown > (auto ? autoRead : 0.45) && (pressed || auto));
+      await until(() => {
+        if (voice?.ended) readAt ??= time;
+        return time - shown > (auto ? autoRead : 0.45) && (pressed || auto || (readAt != null && time - readAt > 0.8));
+      });
       pressed = false;
+      if (voice) g.narration.stop();
       ui.card.hide();
       frozen--;
       await c.wait(0.25);
@@ -70,7 +78,10 @@ export function createDirector(beats, ui, g, { auto = false, autoRead = 0.15, ke
       await c.card(g.verses(first, last), g.reference(first, last), options);
     },
     thought: (text, options = {}) => c.card(text, '', { kind: 'thought', ...options }),
-    toast: (text, ref, seconds) => ui.toast(text, ref, seconds),
+    toast: (text, ref, seconds) => {
+      if (ref) g.narration?.say(ref);
+      ui.toast(text, ref, seconds);
+    },
     /** The line saying what to do (null to take it away), and under it a list of [{ label, done }] if there is one. */
     objective: (text, list) => ui.objective(text, list),
     /**

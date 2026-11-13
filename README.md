@@ -58,6 +58,7 @@ node tools/story.mjs --query "hold&wrong"                                       
 node tools/story.mjs --beat a3 --snap "4:6,4:9" --quality medium --out shots/story   # stills when those cards are up
 node tools/look.mjs city:120,0,0,4,50 --out shots/work                               # a still from any place (u, v, turn, pitch, fov)
 node tools/touch.mjs                                                                 # the touch controls, on a phone-sized touch page
+node tools/narration-check.mjs                                                       # the reading aloud, with a stand-in recording
 node tools/fps.mjs --query "quality=medium&beat=a2-laban"                            # frame rate
 ```
 
@@ -73,6 +74,7 @@ On an Apple M4 at 1080p the game runs at about 56–68 fps at medium with the ca
 - `src/game/guidance.js`: the leading light for the night act.
 - `src/game/town.js`: the people in the streets by day.
 - `src/game/music.js`: the story's music, made in code and played through the valley's sounds.
+- `src/game/narration.js`: the scripture read aloud, from recordings in `public/audio/narration/` made by `tools/narrate.mjs` (ElevenLabs; the key is in `.env` and stays on your machine). A card with a recording goes on by itself when it has been read; the button at the top right, or M, turns the reading off.
 - `src/game/touch.js`: the touch controls, for phones and tablets.
 - `src/game/ui.js`: the cards, the "What to do" panel (a line, and a checklist when the thing has parts), prompt, marker, fades, and the title and end screens.
 - `src/valley/`, `src/lib/`, `src/figure/`: Painted valley's painting, recoloured for dry hills and given a night (`sky.js`).

@@ -24,6 +24,7 @@ import { addCityColliders, createCity, createProps, TURN as CITY_TURN } from '..
 import { createDirector } from '../game/director.js';
 import { createGuidance } from '../game/guidance.js';
 import { createMusic } from '../game/music.js';
+import { createNarration } from '../game/narration.js';
 import { createTown, TOWN_CLOTHES, TOWNSFOLK } from '../game/town.js';
 import { cloneMan, createCast } from '../game/npc.js';
 import { reference, verses } from '../game/scripture.js';
@@ -787,6 +788,9 @@ mark('warm');
 
 // ---- the story -----------------------------------------------------------------------------------------------
 const ui = createUI({ touch });
+const narration = createNarration(sounds, { note });
+// (the list of recordings is asked for once the sounds are ready, since they are played through them)
+Promise.resolve(soundsReady).then(() => narration.load());
 if (touch) createTouch({ canvas, input, ui, press: () => director?.press(), tap: () => director?.tap(), wake: () => sounds.start(), mouse: params.has('touch') });
 /** What the story can reach of the game. Places are given in (u, v) with P, or in metres from the city's middle with C. */
 const g = {
@@ -827,6 +831,8 @@ const g = {
     visible: true,
   },
   log: (message) => console.log(`[game] ${message}`),
+  /** The scripture read aloud, where there are recordings of it (narration.js). */
+  narration,
   setHour,
   /** Puts Nephi at (x, z) facing yaw, with the eye behind him. */
   standAt(x, z, yaw) {
