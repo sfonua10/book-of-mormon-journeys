@@ -51,7 +51,7 @@ void main() {
   float chalk = smoothstep(0.6, 0.72, texture(tNoise, vWorld.xz / 0.45 + 0.4).g) * 0.45;
   vec3 earth = mix(vec3(0.3, 0.25, 0.17), vec3(0.44, 0.4, 0.33), chalk);
   // (on the plain it is silt: a pale dusty brown, a little lighter where it has dried, no stone in it)
-  earth = mix(earth, mix(vec3(0.31, 0.27, 0.2), vec3(0.37, 0.33, 0.26), chalk * 0.5), uLand);
+  earth = mix(earth, mix(vec3(0.255, 0.215, 0.16), vec3(0.3, 0.26, 0.2), chalk * 0.5), uLand);
   vec3 albedo = mix(soil * vec3(1.15, 1.0, 0.82), earth * (0.85 + 0.3 * texture(tStrokes, vWorld.xz / 9.0).r), bare);
   vec3 nt = mix(texture(tSoilN, u1).xyz, texture(tDirtN, u1 * 0.8).xyz, bare) * 2.0 - 1.0;
   float detail = 1.0 - smoothstep(12.0, 40.0, dist);

@@ -10,6 +10,11 @@ import * as THREE from 'three';
 import { COMMON } from '../lib/index.js';
 import { fromValley, heightAt, HERO } from '../valley/world.js';
 import { CAMP, CITY, IN_CITY, LEHI_HOUSE } from './places.js';
+import { GLAZE_CELLS, glazeTexture } from './glaze.js';
+
+/** (a city with no glazed brick reads none) */
+const NO_GLAZE = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
+NO_GLAZE.needsUpdate = true;
 
 const [DX, DZ] = HERO;
 /** The turn about +y that takes the valley's frame (u along x, v along z) to the world's. */
@@ -30,7 +35,13 @@ function mulberry(seed) {
 }
 
 // What each face is: the shader paints them differently.
-export const PART = { PLASTER: 0, ROOF: 1, DARK: 2, WOOD: 3, STONE: 4, CLOTH: 5, GOLD: 6, WINDOW: 7, LAMP: 8 };
+export const PART = { PLASTER: 0, ROOF: 1, DARK: 2, WOOD: 3, STONE: 4, CLOTH: 5, GOLD: 6, WINDOW: 7, LAMP: 8, BRICK: 9, GLAZE: 10, PAVE: 11 };
+
+/**
+ * What a glazed face shows (PART.GLAZE), given as its `seed`: the whole number is the figure, the fraction the
+ * face's own tone. The figures are drawn in glaze.js.
+ */
+export const MOTIF = { GATE: 0, LIONS: 1, LIONS_BACK: 2, ROSETTES: 3, PALMETTES: 4, PLAIN: 5, GATE_BACK: 6 };
 
 const PLASTERS = [
   [0.86, 0.8, 0.68],
@@ -69,6 +80,7 @@ uniform float uNight;     // 0 by day, 1 at night: lamps in the windows
 uniform vec4 uRoomLamp;   // a lamp burning in a room (the treasury): where it is, and how far its light reaches
 uniform vec4 uRoom;       // that room: the valley's line (x, z) and the room's half-sizes along and across it
 uniform float uRoomShade; // how much of the day's light the room's roof keeps off what is in it (0: none)
+uniform sampler2D tGlaze; // the figures on glazed brick (glaze.js): five across
 layout(location = 0) out vec4 outC;
 in vec3 vWorld;
 in vec3 vNormal;
@@ -127,6 +139,13 @@ void main() {
     float shine = pow(max(dot(reflect(-normalize(uCamPos - vWorld), N), uSunDir), 0.0), 8.0);
     paint *= 1.0 + dabs * 0.3;
     glow = vColor * (0.25 + 1.5 * shine) * (uSunColor * 0.3 + 0.2);
+    // (on the river plain the image is a great mass of gold: burnished, holding the sky above and the dusty land
+    // below, and a hard bright point where it takes the sun)
+    vec3 R = reflect(-normalize(uCamPos - vWorld), N);
+    float sharp = pow(max(dot(R, uSunDir), 0.0), 36.0);
+    vec3 held = mix(vec3(0.42, 0.33, 0.2), uSkyColor * 1.5, smoothstep(-0.25, 0.5, R.y));
+    glow = mix(glow, vColor * (held * 0.25 + uSunColor * (0.03 + 1.6 * sharp)), uLand);
+    paint *= mix(1.0, 0.45, uLand);
   } else if (part < 7.5) {
     // a window: dark by day; at night most have a lamp behind them
     paint = vec3(0.05, 0.045, 0.05);
@@ -134,11 +153,66 @@ void main() {
     float flick = 0.86 + 0.14 * sin(uTime * (3.0 + 4.0 * seed) + run * 7.0) * sin(uTime * 1.7 + seed * 40.0);
     glow = vec3(2.4, 1.25, 0.45) * on * flick * uNight;
     alpha = 0.4;
-  } else {
+  } else if (part < 8.5) {
     // the flame of a lamp, always burning
     paint = vec3(0.3, 0.16, 0.06);
     glow = vec3(2.6, 1.4, 0.5) * (0.86 + 0.14 * sin(uTime * (5.0 + 4.0 * seed)) * sin(uTime * 2.3 + seed * 40.0));
     alpha = 0.4;
+  } else if (part < 9.5) {
+    // baked brick, in courses a hand high and a foot long, laid in bitumen: each brick a little its own colour
+    float fine = 1.0 - smoothstep(0.03, 0.09, px);
+    float rows = up / 0.3;
+    float course = floor(rows);
+    float brick = floor(run / 0.62 + 0.5 * mod(course, 2.0));
+    paint *= mix(1.0, 0.88 + 0.22 * hash12(vec2(brick, course) + seed * 17.0), fine);
+    float jy = 1.0 - smoothstep(0.0, 0.035, min(fract(rows), 1.0 - fract(rows)) * 0.3);
+    float bx = fract(run / 0.62 + 0.5 * mod(course, 2.0));
+    float jx = 1.0 - smoothstep(0.0, 0.035, min(bx, 1.0 - bx) * 0.62);
+    paint *= 1.0 - 0.3 * max(jy, jx) * fine;
+    paint *= 1.0 + dabs * 0.16 + wash * 0.18;
+    paint *= mix(0.8, 1.0, smoothstep(-0.2, 1.2, up));
+  } else if (part < 10.5) {
+    // Glazed brick: deep blue, glossy, in courses, with its figures in rows. seed's whole number says which figures
+    // (MOTIF): the gate's bulls and dragons, a row of each in turn; lions, walking one way or the other; rosettes;
+    // palmette columns; or none.
+    float motif = floor(seed + 0.001);
+    float fine = 1.0 - smoothstep(0.03, 0.09, px);
+    vec3 blue = vec3(0.05, 0.15, 0.4) * (0.92 + 0.16 * hash12(vec2(floor(run / 0.62 + 0.5 * mod(floor(up / 0.3), 2.0)), floor(up / 0.3)) + 3.0) * fine + 0.1 * wash);
+    // each figure's width and height, how high a row is, and where the first row begins, metres: the gate's
+    // animals in rows up its whole face; lions and palmettes in one row along the foot; rosettes everywhere
+    // (the gate's animals, walking one way or the other: GATE and GATE_BACK)
+    bool gate = motif < 0.5 || motif > 5.5;
+    vec4 M = gate ? vec4(2.4, 2.4, 2.75, 0.6) : motif < 2.5 ? vec4(2.6, 2.4, 1000.0, 0.7) : motif < 3.5 ? vec4(1.0, 1.0, 1.0, 0.0) : vec4(2.8, 6.2, 1000.0, 3.3);
+    float y = (up - M.w) / M.z;
+    float row = floor(y);
+    vec2 q = vec2(fract(run / M.x), fract(y) * M.z / M.y);
+    float cell = gate ? mod(row, 2.0) : motif < 2.5 ? 2.0 : motif < 3.5 ? 3.0 : 4.0;
+    if ((motif > 1.5 && motif < 2.5) || motif > 5.5) q.x = 1.0 - q.x;
+    vec2 uv = vec2((cell + clamp(q.x, 0.002, 0.998)) / ${GLAZE_CELLS.toFixed(1)}, clamp(q.y, 0.0, 1.0));
+    // (read with the slope of the unbroken coordinates, so the edges between figures are not a seam)
+    vec2 slope = vec2(run / M.x / ${GLAZE_CELLS.toFixed(1)}, (up - M.w) / M.y);
+    vec4 f = ((motif > 4.5 && !gate) || y < 0.0 || q.y > 1.0) ? vec4(0.0) : textureGrad(tGlaze, uv, dFdx(slope), dFdy(slope));
+    float there = smoothstep(0.35, 0.65, f.r);
+    float tone = f.g / max(f.r, 0.05);
+    float second = f.b / max(f.r, 0.05);
+    // the colours of the figures: bulls yellow with blue-green hair, dragons white with yellow, lions white or
+    // yellow with yellow or red manes, rosettes white with yellow hearts, columns yellow with pale blue capitals
+    vec3 body = cell < 0.5 ? vec3(0.86, 0.62, 0.22) : cell < 1.5 ? vec3(0.9, 0.86, 0.74) : cell < 2.5 ? mix(vec3(0.9, 0.87, 0.76), vec3(0.88, 0.68, 0.26), step(0.5, hash12(vec2(floor(run / M.x), row) + seed))) : cell < 3.5 ? vec3(0.92, 0.9, 0.82) : vec3(0.88, 0.7, 0.28);
+    vec3 other = cell < 0.5 ? vec3(0.2, 0.5, 0.55) : cell < 1.5 ? vec3(0.86, 0.64, 0.22) : cell < 2.5 ? vec3(0.82, 0.5, 0.16) : cell < 3.5 ? vec3(0.9, 0.7, 0.22) : vec3(0.52, 0.76, 0.86);
+    vec3 fig = mix(body, other, smoothstep(0.4, 0.6, second)) * mix(0.55, 1.08, clamp(tone, 0.0, 1.0));
+    paint = mix(blue, fig, there * mix(0.6, 1.0, fine));
+    // (a glaze catches the sun)
+    float shine = pow(max(dot(reflect(-normalize(uCamPos - vWorld), N), uSunDir), 0.0), 24.0);
+    glow = paint * shine * uSunColor * 0.35;
+  } else {
+    // paving: slabs of pale limestone a little over a metre square, each its own tone, the joints thin and dark
+    float fine = 1.0 - smoothstep(0.03, 0.1, px);
+    vec2 slab = floor(vec2(run, up) / 1.05);
+    vec2 inSlab = fract(vec2(run, up) / 1.05);
+    paint *= mix(1.0, 0.86 + 0.24 * hash12(slab + seed * 11.0), fine);
+    float j = 1.0 - smoothstep(0.0, 0.03, min(min(inSlab.x, 1.0 - inSlab.x), min(inSlab.y, 1.0 - inSlab.y)) * 1.05);
+    paint *= 1.0 - 0.35 * j * fine;
+    paint *= 1.0 + dabs * 0.12 + wash * 0.16;
   }
   vec3 sun = uSunColor * 0.42 + uSkyColor * 0.3;
   // (the shade on a wall in these hills is warm: light thrown up off the pale ground and the walls across the street)
@@ -147,7 +221,7 @@ void main() {
   if (part > 0.5 && part < 1.5) sky *= 1.25;
   // the ground at a wall's foot is in its own shade
   float foot = mix(0.72, 1.0, smoothstep(0.0, 1.2, up));
-  vec3 col = paint * mix(sky, sun, lit) * (part < 1.5 || part > 3.5 ? foot : 1.0);
+  vec3 col = paint * mix(sky, sun, lit) * (part < 1.5 || (part > 3.5 && part < 10.5) ? foot : 1.0);
   // what the room's lamp falls on: the faces turned to it, less with distance
   vec3 toLamp = uRoomLamp.xyz - vWorld;
   float reach = 1.0 - smoothstep(0.25, 1.0, length(toLamp) / max(uRoomLamp.w, 0.001));
@@ -200,6 +274,27 @@ function builder() {
       quad([[u1, y0, v1], [u0, y0, v1], [u0, y1, v1], [u1, y1, v1]], [0, 0, 1], part, colour, [[-u1, h0], [-u0, h0], [-u0, h1], [-u1, h1]], seed);
       if (top) quad([[u0, y1, v0], [u0, y1, v1], [u1, y1, v1], [u1, y1, v0]], [0, 1, 0], roofPart, roofColour, [[u0, v0], [u0, v1], [u1, v1], [u1, v0]], seed);
       if (solid) solids.push([u0, u1, v0, v1, y0, y1]);
+    },
+    /**
+     * A thing turned round an upright line through (u, v), as on a wheel: its outline as [radius, height above y0]
+     * pairs from the bottom up, `sides` faces round. `deep` squeezes it along u (a body is broader than it is deep).
+     */
+    turned(u, v, y0, outline, sides, part, colour, seed, deep = 1) {
+      for (let i = 0; i + 1 < outline.length; i++) {
+        const [r0, h0] = outline[i];
+        const [r1, h1] = outline[i + 1];
+        const len = Math.hypot(r1 - r0, h1 - h0) || 1;
+        const out = (h1 - h0) / len;
+        const rise = -(r1 - r0) / len;
+        const at = (r, h, a) => [u + Math.cos(a) * r * deep, y0 + h, v + Math.sin(a) * r];
+        for (let k = 0; k < sides; k++) {
+          const a0 = (k / sides) * Math.PI * 2;
+          const a1 = ((k + 1) / sides) * Math.PI * 2;
+          const am = (a0 + a1) / 2;
+          const n = [Math.cos(am) * out, rise, Math.sin(am) * out];
+          quad([at(r0, h0, a0), at(r1, h1, a0), at(r1, h1, a1), at(r0, h0, a1)], n, part, colour, [[a0 * r0, h0], [a0 * r1, h1], [a1 * r1, h1], [a1 * r0, h0]], seed);
+        }
+      }
     },
     /** A flat thing on a face: a window or a door. side: 'w', 'e', 's', 'n'; at: along the face's own axis (u or v). */
     patch(side, plane, at, width, yLo, yHi, base, part, colour, seed) {
@@ -309,10 +404,12 @@ function buildCity(b, random, look) {
   const T = CITY.thick;
   const W = CITY.wall;
   const S = (u0, u1, v0, v1) => [cu + u0, cu + u1, cv + v0, cv + v1];
+  // (what its walls are built of: Jerusalem's dressed stone, unless the look says otherwise)
+  const WALL = look.wallPart ?? PART.STONE;
   const wallBox = (u0, u1, v0, v1, height = W, seed = random()) => {
     const [a, c, d, e] = S(u0, u1, v0, v1);
     const base = footing(a, c, d, e);
-    b.box(a, c, d, e, base - 2, base + height, { part: 4, colour: STONE, seed, base, roofPart: PART.STONE, roofColour: STONE });
+    b.box(a, c, d, e, base - 2, base + height, { part: WALL, colour: STONE, seed, base, roofPart: WALL, roofColour: STONE });
     // battlements along the top: a merlon every two and a half metres on the outer edge
     return base;
   };
@@ -321,14 +418,18 @@ function buildCity(b, random, look) {
     const alongU = c - a > e - d;
     const len = alongU ? c - a : e - d;
     const n = Math.floor(len / 2.4);
+    // (stepped, as Babylon's are drawn: a broad step, and a narrower one on it)
+    const steps = look.stepped ? [[0.6, 0, 0.6], [0.32, 0.6, 1.25]] : [[0.6, 0, 1.1]];
     for (let i = 0; i < n; i++) {
       const s = (alongU ? a : d) + (i + 0.5) * (len / n);
-      if (alongU) {
-        const vv = outer === 's' ? d : e - 0.9;
-        b.box(s - 0.6, s + 0.6, vv, vv + 0.9, top, top + 1.1, { part: 4, colour: STONE, seed: 0.3, base: top - W, roofPart: PART.STONE, roofColour: STONE, solid: false });
-      } else {
-        const uu = outer === 'w' ? a : c - 0.9;
-        b.box(uu, uu + 0.9, s - 0.6, s + 0.6, top, top + 1.1, { part: 4, colour: STONE, seed: 0.3, base: top - W, roofPart: PART.STONE, roofColour: STONE, solid: false });
+      for (const [w, y0, y1] of steps) {
+        if (alongU) {
+          const vv = outer === 's' ? d : e - 0.9;
+          b.box(s - w, s + w, vv, vv + 0.9, top + y0, top + y1, { part: WALL, colour: STONE, seed: 0.3, base: top - W, roofPart: WALL, roofColour: STONE, solid: false });
+        } else {
+          const uu = outer === 'w' ? a : c - 0.9;
+          b.box(uu, uu + 0.9, s - w, s + w, top + y0, top + y1, { part: WALL, colour: STONE, seed: 0.3, base: top - W, roofPart: WALL, roofColour: STONE, solid: false });
+        }
       }
     }
   };
@@ -351,11 +452,19 @@ function buildCity(b, random, look) {
     merlons(u + s / 2 - 0.9, u + s / 2, v - s / 2, v + s / 2, base + h, 'e');
   };
   for (const [u, v] of [[-hu, -hv], [hu, -hv], [-hu, hv], [hu, hv], [0, -hv], [0, hv], [hu, 0], [-hu + 1, -gw - 4.2], [-hu + 1, gw + 4.2]]) tower(u, v);
+  // (a wall with towers close along it, smaller ones between the great ones, as Babylon's has)
+  if (look.towerEvery) {
+    const every = look.towerEvery;
+    const great = [[-hu, -hv], [hu, -hv], [-hu, hv], [hu, hv], [0, -hv], [0, hv], [hu, 0], [-hu + 1, -gw - 4.2], [-hu + 1, gw + 4.2]];
+    const free = (u, v) => great.every(([gu, gv]) => Math.hypot(u - gu, v - gv) > every * 0.7);
+    for (let u = -hu + every; u < hu - every * 0.5; u += every) for (const v of [-hv, hv]) if (free(u, v)) tower(u, v, 5, W + 2.2);
+    for (let v = -hv + every; v < hv - every * 0.5; v += every) for (const u of [-hu, hu]) if (free(u, v) && (u > 0 || Math.abs(v) > gw + 10)) tower(u, v, 5, W + 2.2);
+  }
   // over the gate, a lintel of stone, and its two great doors standing open against the passage
   {
     const [a, c, d, e] = S(-hu - 1, -hu + T + 1, -gw, gw);
     const base = footing(a, c, d, e);
-    b.box(a, c, d, e, base + 5.6, base + W + 4, { part: 4, colour: STONE, seed: 0.7, base, roofPart: PART.STONE, roofColour: STONE });
+    b.box(a, c, d, e, base + 5.6, base + W + 4, { part: WALL, colour: STONE, seed: 0.7, base, roofPart: WALL, roofColour: STONE });
     b.quad([[a, base + 5.6, d], [a, base + 5.6, e], [c, base + 5.6, e], [c, base + 5.6, d]], [0, -1, 0], PART.DARK, STONE, [[0, 5.6], [0, 5.6], [0, 5.6], [0, 5.6]], 0.7);
     const [g0, g1] = [cu - hu + T, cu - hu + T + 2.9];
     b.box(g0, g1, cv - gw, cv - gw + 0.22, base - 0.2, base + 5.5, { part: PART.WOOD, colour: WOOD, seed: 0.2, base, solid: false });
@@ -367,7 +476,9 @@ function buildCity(b, random, look) {
   const inner = [-hu + T + 4, hu - T - 4, -hv + T + 4, hv - T - 4];
   const main = [-3.5, 3.5];
   const cross = [[-30, -24], [16, 23]];
-  const special = [IN_CITY.laban, IN_CITY.court, IN_CITY.treasury].map(([a, d, c, e]) => [a, c, d, e]);
+  // (the ground kept for the city's own great buildings, [cu0, cv0, cu1, cv1]: Laban's and his treasury, unless the
+  // look keeps other ground)
+  const special = (look.reserve ?? [IN_CITY.laban, IN_CITY.court, IN_CITY.treasury]).map(([a, d, c, e]) => [a, c, d, e]);
   // a little square inside the gate
   const square = [inner[0] - 1, -46, -13, 13];
   const blocksU = [[inner[0], cross[0][0]], [cross[0][1], cross[1][0]], [cross[1][1], inner[1]]];
@@ -389,7 +500,8 @@ function buildCity(b, random, look) {
         const door = sides.length ? sides[Math.floor(random() * sides.length)] : null;
         const h = 3.6 + random() * (random() < 0.3 ? 4.2 : 2.2);
         const [a, c, d, e] = S(...l);
-        house(b, random, a, c, d, e, h, { colour: PLASTERS[Math.floor(random() * PLASTERS.length)], door: door && [door[0], door[0] === 'w' || door[0] === 'e' ? cv + door[1] : cu + door[1]], windows: sides.map((s) => s[0]).join('') });
+        // (in Babylon a house looks in on its own court: no window on the street)
+        house(b, random, a, c, d, e, h, { colour: PLASTERS[Math.floor(random() * PLASTERS.length)], door: door && [door[0], door[0] === 'w' || door[0] === 'e' ? cv + door[1] : cu + door[1]], windows: look.windows === false ? '' : sides.map((s) => s[0]).join('') });
       }
     }
   }
@@ -616,7 +728,7 @@ export function createCity(field, look = JERUSALEM) {
   const b = builder();
   buildCity(b, random, look);
   look.outside(b, random);
-  const uniforms = { ...field.uniforms, uNight: { value: 0 }, uRoomLamp: { value: new THREE.Vector4(0, 0, 0, 0) }, uRoom: { value: new THREE.Vector4(1, 0, 0, 0) }, uRoomShade: { value: 0 } };
+  const uniforms = { ...field.uniforms, uNight: { value: 0 }, uRoomLamp: { value: new THREE.Vector4(0, 0, 0, 0) }, uRoom: { value: new THREE.Vector4(1, 0, 0, 0) }, uRoomShade: { value: 0 }, tGlaze: { value: look.glaze ? glazeTexture() : NO_GLAZE } };
   const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: vertex, fragmentShader: fragment, uniforms, side: THREE.DoubleSide });
   const mesh = new THREE.Mesh(b.build(), material);
   mesh.frustumCulled = false;

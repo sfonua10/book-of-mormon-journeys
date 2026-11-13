@@ -107,10 +107,17 @@ export const PLAIN = {
   roadHalf: 6,
   /** The plain of Dura (Daniel 3:1): the open ground before the gate, its middle and how far it reaches. */
   dura: [170, 0, 62],
+  /** The level the plain of Dura, the road and the city are made to, metres: a little above the plain round them. */
+  level: 0.75,
+  /** On it: the image of gold, which looks towards the city (+u). */
+  image: [128, 0],
+  /** The king's seat: a low dais, its middle and half-sizes and how high it is; he sits facing +v. */
+  seat: { at: [180, -40], half: [5, 3.5], rise: 0.6 },
+  /** The burning fiery furnace: a kiln of brick, its middle and half-sizes; its door is on its -v face. */
+  kiln: { at: [166, 44], half: [8, 7] },
   /** Places nothing should be planted on: [u, v, radius]. */
   keep: [
     [170, 0, 80],
-    [205, -36, 30],
     [GATE[0] - 30, 0, 26],
   ],
 };

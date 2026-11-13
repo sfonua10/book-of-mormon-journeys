@@ -234,9 +234,16 @@ function plainLand(x, z) {
   const v = -x * DZ + z * DX;
   // (rises and hollows too low to be seen as such, enough to catch the light)
   let h = (fbm(x / 190 + 3.1, z / 190 - 1.7, 3, 1) - 0.5) * 1.1 + (fbm(x / 47 + 9.3, z / 47 + 4.1, 2, 5) - 0.5) * 0.3;
+  // the city's ground, the road out of its gate and the plain of Dura before it, all made level, and the king's
+  // dais standing up out of it
+  const made = PLAIN.level;
   const d = cityDistance(u, v);
-  if (d <= 30) h += (0.4 - h) * (1 - smooth(4, 30, d));
-  h += 0.35 * (1 - smooth(PLAIN.roadHalf - 1, PLAIN.roadHalf + 3, lineDistance(u, v, PLAIN.road)));
+  if (d <= 30) h += (made - h) * (1 - smooth(4, 30, d));
+  h += (made - h) * (1 - smooth(PLAIN.roadHalf + 7, PLAIN.roadHalf + 11, lineDistance(u, v, PLAIN.road)));
+  const [du, dv, dr] = PLAIN.dura;
+  h += (made - h) * (1 - smooth(dr * 0.85, dr * 1.2, Math.hypot(u - du, v - dv)));
+  const { at: [su, sv], half: [shu, shv], rise } = PLAIN.seat;
+  h += rise * (1 - smooth(-0.6, 0.6, Math.max(Math.abs(u - su) - shu, Math.abs(v - sv) - shv)));
   const { half, level } = PLAIN.river;
   const r = Math.abs(v - riverMiddle(u));
   h += 0.5 * Math.exp(-(((r - half - 12) / 7) ** 2));
@@ -356,7 +363,7 @@ function plainPaint(x, z) {
     } else {
       // (ploughed and left: dark, damp silt)
       growth = bund * 0.5;
-      wet = 0.65;
+      wet = 0.8;
     }
   }
   // the river's bank and the canals' sides: reeds and rank green down to the water
