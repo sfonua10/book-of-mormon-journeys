@@ -60,6 +60,12 @@ const STORIES = {
     key: ['3:1', '3:6', '3:12', '3:15', '3:16-said', '3:17', '3:18', '3:25-said', '3:27', '3:28-said'],
     names: { Nebuchadnezzar: 'Neb-uh-kud-nezz-er', Shadrach: 'Shay-drak', Meshach: 'Mee-shak', Abednego: 'Uh-bed-nih-go', Chaldeans: 'Kal-dee-uns', Dura: 'Doo-ruh' },
   },
+  'lions-den': {
+    file: 'src/game/lions-den.js',
+    scripture: ['src/game/scripture-daniel.js', 'daniel'],
+    key: ['6:4', '6:5-said', '6:7', '6:10', '6:11', '6:14', '6:16-said', '6:18', '6:20-said', '6:22', '6:23', '6:26', '6:27'],
+    names: { Darius: 'Duh-rye-us', Medes: 'Meeds', Cyrus: 'Sye-rus' },
+  },
 };
 const chosenStory = STORIES[flag('story', 'plates-of-brass')];
 if (!chosenStory) {

@@ -4,7 +4,7 @@
 
 Painted walking games through the scriptures, one journey at a time. The first screen asks for a book of scripture (the Book of Mormon, the Old Testament), then lists that book's journeys, with the next one shown as coming.
 
-Adding a journey: write its story beside `src/game/story.js`, give it an entry in `src/game/stories.js` with its `work` (the book it belongs to), its `scripture` (the verses its cards quote) and `released: true`. A journey may bring its own land (`land`: the hill country round Jerusalem, or `'plain'`, the river plain of Babylon, in `src/valley/world.js`), its own city (`look`), people and clothes, as the Daniel journey does (`src/game/daniel.js`, `src/game/babylon.js`). Each journey keeps its own place in the browser.
+Adding a journey: write its story beside `src/game/story.js`, give it an entry in `src/game/stories.js` with its `work` (the book it belongs to), its `scripture` (the verses its cards quote) and `released: true`. A journey may bring its own land (`land`: the hill country round Jerusalem, or `'plain'`, the river plain of Babylon, in `src/valley/world.js`), its own city (`look`), people and clothes, as the Daniel journeys do (`src/game/daniel.js`, `src/game/lions-den.js`, `src/game/babylon.js`). Each journey keeps its own place in the browser.
 
 (The game was first called Book of Mormon Journeys, when the Book of Mormon was all it held. The old web address and the old repository name redirect to the new ones.)
 
@@ -42,6 +42,44 @@ Babylon has its own land (`world.js`, `'plain'`): a level river plain, the Euphr
 - **Not known**: where the plain of Dura was; what the image of gold was an image of. It is given the verse's measure, 60 by 6 cubits (27.4 m by 2.74 m), as a robed figure with a tall cap and no face on a tall base, as the Church's illustrated story has "a giant, golden statue".
 
 Not in the text, shown because a scene needs it: the king's seat on a dais under a canopy; the furnace's ramp; the people's staffs, helmets and colours; the fourth walking beside you (3:25 says "walking"); remembering 3:17 on the way to the furnace, and the still chord that follows; the four things of 3:27 told as you go among the officials.
+
+## Old Testament, Journey 2: As He Did Aforetime
+
+**Daniel 6**, in the King James Version: the writing that is signed, Daniel at his open windows, the den of lions, and the morning. You are Daniel. It follows the same week's *Come, Follow Me* (Daniel 1–7: "I can trust in the Lord when my faith is tried"; and for children, "Heavenly Father wants me to pray often" and "Jesus will help me do what is right even when it's hard"), and its end asks what the lesson asks.
+
+> "Now when Daniel knew that the writing was signed, he went into his house; and his windows being open in his chamber toward Jerusalem, he kneeled upon his knees three times a day, and prayed, and gave thanks before his God, as he did aforetime." (Daniel 6:10)
+
+It is told as the Daniel 3 journey is: what is said is a card under the speaker's name (Darius, The presidents and princes, Daniel), what is only done is a line read while you walk, a cut verse is marked with "…", and `tools/excerpts.mjs` checks every one against its verse. It takes about 12–15 minutes.
+
+| Act | Verses | What you do |
+|---|---|---|
+| One: An Excellent Spirit | 6:1–9 | Walk out by the Ishtar Gate, between the walls of lions, to the king's seat. Hear the accounts of four of the princes, in what order you will (6:2), while the other two presidents keep behind you and watch; what they sought and did not find (6:4) is told a part at a time. Then, from a little way off, they go to the king, and he signs the writing. Fill in "the law of the Medes and Persians, which ___ not". |
+| Two: Three Times a Day | 6:10–15 | You are asked, with no haste to answer, what you will do now that the writing is signed: go into your house and pray, as before, or not; choose not to, and what Daniel did is read again (the question and its two answers are not scripture, and are shown in italics without a reference). Go into your house. Kneel at the open window three times, in the morning, at noon and at evening, the sun crossing the sky between. At the third, the men assemble at the door and the windows and find you praying: there is one thing to do, and it is to keep praying. Fill in "and prayed, and gave ___ before his God". Then, before the king, the sun goes down as he labours to deliver you. |
+| Three: The Den of Lions | 6:16–18 | The king's men bring you to the den. From its floor you look up to its mouth as the king speaks, and the stone is laid upon it and the light goes. In the dark the lions prowl, their eyes shining. Then there is light, and one in white standing in it, and every lion's mouth is shut. Walk among the lions: each one you come to lies down. The king's sleepless night is read as you rest among them. |
+| Four: The Living God | 6:19–28 | Very early in the morning the stone is drawn off and the king cries down to you. Answer him: fill in "hath shut the lions' ___". You are taken up: fill in "because he ___ in his God". Go with the king to his seat, where he sends his writing to all people. |
+
+Four times a verse is shown with a word left out, as in the Daniel 3 journey; a wrong answer costs nothing. There is no score and no other ending. It has no recorded reading yet (45 recordings, about 5,200 characters, are listed by `node tools/narrate.mjs --story lions-den --dry`).
+
+What is shown, and what is not:
+
+- Daniel is cast into the den between one picture and the next, and taken up out of it the same way.
+- Of his night there the chapter tells only what he says in the morning: "My God hath sent his angel, and hath shut the lions' mouths, that they have not hurt me" (6:22). That is what is shown: a figure in white, in light, who says nothing and is called nothing but what the verse calls him; the lions' mouths shut. The lions lying down as you go among them is the game's picture of "they have not hurt me", not the text's words.
+- What was done to those who accused him, "them, their children, and their wives" (6:24), is read whole, in the dark, and not seen, as the men slain by the flame are in the Daniel 3 journey.
+- The lions (`src/game/lions.js`) are made in code, of a few solid parts, and painted as the people are. They walk, look, open and shut their mouths, and lie down. Nothing shows a lion harming anyone.
+
+**The end of it** sets four things told of Daniel beside four told of Jesus Christ, each the verse's own words and nothing said of them (the Gospel verses are from the same King James text, and `tools/excerpts.mjs` checks them too), and then asks one question: no fault found in him (6:4, Luke 23:4); a ruler who sought to deliver him (6:14, John 19:12); a stone laid and sealed (6:17, Matthew 27:66); very early in the morning (6:19, Mark 16:2). This is a long-held reading of the chapter among Christians; it is not in that week's *Come, Follow Me*, which is why it is set apart under its own heading, after the lesson's questions.
+
+### Babylon in the days of Darius, and how sure we are of it
+
+The same city and plain (`BABYLON_DARIUS` in `src/game/babylon.js`: the same walls, gate and king's seat, so the Daniel 3 journey is not changed by it), with Daniel's house and the den where the image and the furnace stood a lifetime before.
+
+- **Not known**: where Daniel's house stood, where the den was, or where the king sat; who "Darius the Median" (5:31) was, outside the book of Daniel; how his court was dressed. They are given Babylon's long fringed tunics and mantles, the king a robe of blue and a mantle of crimson.
+- **A guess**: the den as a walled and roofed place of brick entered from above by one mouth, with a ramp up to its roof. The text has him "cast into" it, a stone "laid upon the mouth" of it, Daniel "taken up out of" it, and "the bottom of the den" (6:16–17, 6:23–24), and that is all that is known of it. Kings of Assyria and Babylon did keep lions.
+- **A guess**: Daniel's house as one room with three open windows in one wall (6:10 says "his chamber", which the Aramaic has as an upper room). The windows look the way the sun goes down in this land, past the walls of Babylon.
+- **Reckoned**: that Daniel is an old man. He was brought to Babylon as a youth (1:1–6), and Babylon fell some seventy years later; so his hair and beard are white.
+- **Not in the text, shown because a scene needs it**: hearing the princes' accounts (6:2 says only that they gave them); the men coming to the door and windows (6:11 says they "assembled, and found Daniel praying"); the light in the chamber as he prays; the king and his lords standing at the den's mouth; the multitude before the king's seat when he writes "unto all people" (6:25).
+
+The morning's light is the evening's turned about (`src/valley/sky.js`): this land had only afternoons and nights before.
 
 It is a remix of Patch's [Painted valley](https://patch.gg/blendi/painted-valley), a three.js scene painted like an animated film's backgrounds. The painting, grass, sky, figure and walk come from Painted valley. This game adds the hill country, the city, the story and the night.
 
@@ -82,7 +120,7 @@ On a phone or a tablet it is played by touch (`src/game/touch.js`): a thumb on t
 Useful URL options:
 - `?quality=low|medium|high` (medium by default)
 - `?names=0` leaves off the names written small over those the text names (`src/game/names.js`)
-- `?beat=a2` starts at a beat. The beats are `a1`, `a1-gate`, `a2`, `a2-laban`, `a2-rock`, `a3`, `a3-laban`, `a3-treasury`, `a3-walls` and `home`.
+- `?beat=a2` starts at a beat. The beats are `a1`, `a1-gate`, `a2`, `a2-laban`, `a2-rock`, `a3`, `a3-laban`, `a3-treasury`, `a3-walls` and `home`. (With `?story=fiery-furnace`: `a1`, `a1-dura`, `a2`, `a3`, `a3-fire`, `a3-forth`. With `?story=lions-den`: `a1`, `a1-accounts`, `a2`, `a2-king`, `a3`, `a3-den`, `a4`, `a4-up`.)
 - `?auto` lets the game play itself. With `&hold` it is overtaken once in the chase before it leaves the property, and with `&wrong` it answers Zoram wrongly once each time and fills in every left-out word wrongly, so a test covers those ways too.
 - `?count=log` writes what would be counted to the console in place of counting it (see "What is counted").
 
@@ -112,7 +150,11 @@ node tools/narration-check.mjs                                                  
 node tools/fps.mjs --query "quality=medium&beat=a2-laban"                            # frame rate
 node tools/story.mjs --query "story=fiery-furnace"                                   # the Daniel journey, to its end
 node tools/story.mjs --query "story=fiery-furnace&bow&wrong"                         # falling down once, every word filled in wrongly
+node tools/story.mjs --query "story=lions-den"                                       # the Daniel 6 journey, to its end
+node tools/story.mjs --query "story=lions-den&wrong"                                 # choosing not to pray once, every word filled in wrongly
+node tools/journeys.mjs                                                              # the list of journeys, what is kept, and the end screens
 node tools/excerpts.mjs                                                              # every shortened verse is the verse's own words
+node tools/verses.mjs pg10.txt "The Book of Daniel" --check src/game/scripture-daniel.js VERSES   # the verses are as the King James text has them
 node tools/same.mjs shots/before shots/after                                         # two folders of stills, pixel by pixel
 node tools/count-check.mjs                                                           # what is counted, and that a test's play is not
 ```
@@ -136,6 +178,8 @@ On an Apple M4 at 1080p the game runs at about 56–68 fps at medium with the ca
 - `src/game/tally.js`: what leaves the page: the counts of how a journey is played, and a parent's note at its end.
 - `src/game/daniel.js`, `src/game/scripture-daniel.js`: the Daniel journey's beats, people and clothes; Daniel 3 verse by verse, the shortened verses and those with a word left out.
 - `src/game/babylon.js`, `src/game/glaze.js`: Babylon and the plain of Dura; the glazed brick's figures (bull, dragon, lion, rosette, palmette), drawn in code.
+- `src/game/lions-den.js`, `src/game/lions.js`, `src/game/telling.js`: the Daniel 6 journey's beats, people and clothes; the lions of the den, made in code; and how a story shows its scripture (a card, a line, a verse with a word left out).
+- `tools/verses.mjs`: prints verses for `scripture-daniel.js` from the King James text as published (Project Gutenberg #10), and checks the table against it.
 - `src/game/crowd.js`: the multitude, painted, which falls down when the music sounds.
 - `src/game/heat.js`: the furnace's heat at the picture's edges.
 - `src/game/ui.js`: the cards, the "What to do" panel at the top left (a line, and a checklist when the thing has parts), the prompt and the line of scripture low on the screen (the prompt above the line, so that no two lie in the one place), the way-marker (a gold diamond with how far it is, which says "Go here" when the thing to do is new, and at the picture's edge points to where the place is), fades, and the title and end screens.

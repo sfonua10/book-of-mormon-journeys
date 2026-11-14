@@ -5,8 +5,9 @@
 // teaser after it. The teaser is the one entry with `released: false`: with a title and a ref it is named on the
 // select screen, and without them it only says that a new journey is coming.
 import * as furnace from './daniel.js';
+import * as den from './lions-den.js';
 import { nephi } from './scripture.js';
-import { daniel } from './scripture-daniel.js';
+import { daniel, PAIRS } from './scripture-daniel.js';
 import { CLOTHES, NAMES, PEOPLE, story } from './story.js';
 
 export const GAME = {
@@ -118,8 +119,49 @@ export const STORIES = [
       ],
     },
   },
+  {
+    id: 'lions-den',
+    work: 'ot',
+    book: 'daniel',
+    number: 2,
+    title: 'As He Did Aforetime',
+    ref: 'Daniel 6',
+    blurb: 'Daniel prays at his open windows though the king has signed against it, and is cast into the den of lions.',
+    released: true,
+    first: 'a1',
+    beats: den.story,
+    people: den.PEOPLE,
+    names: den.NAMES,
+    clothes: den.CLOTHES,
+    scripture: daniel,
+    /** The one you walk as wears a beard: Daniel, an old man by now. */
+    bearded: true,
+    /** Babylon in the days of Darius (babylon.js): the same city, with Daniel's house and the den before it. */
+    look: den.LOOK,
+    land: 'plain',
+    town: den.town,
+    end: {
+      heading: 'He Delivereth and Rescueth',
+      quote: '“… for he is the living God, and stedfast for ever, and his kingdom that which shall not be destroyed, and his dominion shall be even unto the end. He delivereth and rescueth …”',
+      cite: 'Daniel 6:26–27',
+      // (as this week's Come, Follow Me asks: about trusting the Lord when faith is tried; and, for children, that
+      // Heavenly Father wants us to pray often, and that Jesus will help us do what is right when it is hard)
+      talk: 'Daniel knew the writing was signed, and he prayed as he had before. Why was praying to Heavenly Father so important to him? When have you felt pressed to do something you knew was wrong, or to leave off something you knew was right? Heavenly Father wants you to pray often, and Jesus will help you do what is right, even when it is hard.',
+      // Four things told of Daniel, each beside one told of Jesus Christ: the verses' own words, and nothing said of
+      // them (scripture-daniel.js, PAIRS; tools/excerpts.mjs checks each against its verse)
+      pairs: PAIRS.map(([a, b]) => [
+        { text: a.text, cite: `Daniel ${a.verse}` },
+        { text: b.text, cite: b.verse },
+      ]),
+      pairsHeading: 'Daniel, and the Saviour',
+      pairsAsk: 'What do you see of Jesus Christ in what happened to Daniel?',
+      links: [
+        ['Daniel 6', 'https://www.churchofjesuschrist.org/study/scriptures/ot/dan/6?lang=eng'],
+        ['this week’s Come, Follow Me', 'https://www.churchofjesuschrist.org/study/manual/come-follow-me-for-home-and-church-old-testament-2026/46?lang=eng'],
+      ],
+    },
+  },
 ];
-
 /** The released story of that id, or the first if there is none. */
 export const storyById = (id) => STORIES.find((s) => s.released && s.id === id) ?? STORIES.find((s) => s.released);
 

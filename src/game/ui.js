@@ -158,6 +158,16 @@ const CSS = /* css */ `
 .g-screen .heard .note button { justify-self: start; margin: 8px 0 0; }
 .g-screen .heard .said { opacity: 0.85; }
 .g-screen .heard .quiet { font-size: 12px; opacity: 0.55; margin: 18px 0 0; }
+/* two verses set side by side at a journey's end (one under the other on a narrow screen) */
+.g-screen .beside { margin: 26px 0 6px; padding-top: 18px; border-top: 1px solid var(--line); }
+.g-screen .beside h2 { font-weight: normal; font-size: 13px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin: 0 0 12px; }
+.g-screen .beside .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; text-align: left; padding: 12px 0; border-top: 1px solid rgba(244, 234, 214, 0.12); }
+.g-screen .beside .pair:first-of-type { border-top: 0; }
+.g-screen .beside blockquote { margin: 0; font-size: 16px; }
+.g-screen .beside .ask { font-style: italic; margin: 10px 0 0; }
+@media (max-width: 640px) {
+  .g-screen .beside .pair { grid-template-columns: 1fr; gap: 10px; }
+}
 .g-screen .box { padding: 24px 0; }
 /* the list of journeys: plain, over the painting dimmed right down, so that the rows are what is looked at */
 #g-title { background: rgba(14, 10, 6, 0.88); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
@@ -486,7 +496,8 @@ export function createUI({ touch = false } = {}) {
     },
     /**
      * The end of a journey: what was read, where to read more, something to talk about. `copy` is the story's own
-     * (stories.js, end): { heading, quote, cite, talk, links: [[name, url]] }.
+     * (stories.js, end): { heading, quote, cite, talk, links: [[name, url]] }. It may also set verses side by side
+     * (`pairs`: [[{ text, cite }, { text, cite }]], under `pairsHeading`, with a question after them, `pairsAsk`).
      */
     end({ copy, onAgain, onBack, onEnjoyed = null, onNote = null, counted = false }) {
       const links = copy.links.map(([name, url]) => `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a>`);
@@ -496,6 +507,15 @@ export function createUI({ touch = false } = {}) {
         <h1>${esc(copy.heading)}</h1>
         <blockquote>${esc(copy.quote)}<cite>${esc(copy.cite)}</cite></blockquote>
         <p>To talk about together: ${esc(copy.talk)}</p>
+        ${
+          copy.pairs?.length
+            ? `<div class="beside">
+          ${copy.pairsHeading ? `<h2>${esc(copy.pairsHeading)}</h2>` : ''}
+          ${copy.pairs.map((pair) => `<div class="pair">${pair.map((v) => `<blockquote>${esc(v.text)}<cite>${esc(v.cite)}</cite></blockquote>`).join('')}</div>`).join('')}
+          ${copy.pairsAsk ? `<p class="ask">${esc(copy.pairsAsk)}</p>` : ''}
+        </div>`
+            : ''
+        }
         ${listed ? `<p>Read the whole account in ${listed}.</p>` : ''}
         <p class="next">The next journey arrives next week.</p>
         <button data-go="back">Back to journeys</button><button data-go="again" class="plain">Play again</button>

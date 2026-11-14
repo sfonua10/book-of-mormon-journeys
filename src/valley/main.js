@@ -27,7 +27,7 @@ import { createGuidance } from '../game/guidance.js';
 import { createMusic } from '../game/music.js';
 import { createNarration } from '../game/narration.js';
 import { createTown, TOWN_CLOTHES, TOWNSFOLK } from '../game/town.js';
-import { cloneMan, createCast } from '../game/npc.js';
+import { cloneMan, createCast, poseAcross, PRAY, PRAY_SINK } from '../game/npc.js';
 import { createNames } from '../game/names.js';
 import { GAME, keeper, STORIES, storyById, WORKS } from '../game/stories.js';
 import { createUI } from '../game/ui.js';
@@ -189,7 +189,8 @@ field.uniforms.uLand.value = LAND === 'plain' ? 1 : 0;
 // in the story are copies of him, each dressed in his own colours.)
 const manComing = loadMan({ base: './figure/' });
 // (he is dressed as the journey has him: Nephi, unless it brings clothes for its own `player`)
-const wandererComing = manComing.then((man) => createWanderer(field, null, STORY_CLOTHES.player ?? {}, { man: cloneMan(man) }));
+// (and bearded, where the journey says the one you walk as is: Daniel, an old man by his sixth chapter)
+const wandererComing = manComing.then((man) => createWanderer(field, null, STORY_CLOTHES.player ?? {}, { man: cloneMan(man), beard: !!journey.bearded }));
 const physicsComing = RAPIER.init();
 mark('field');
 field.uniforms.tFloor.value = createFloor(renderer, FLOOR_SIZE, (await floorJob).pixels);
@@ -265,6 +266,10 @@ let director = null;
 /** What Nephi last held ({ out, up, wide }), and how far his arms are into holding it, 0 to 1. */
 let carryPose = null;
 let carryK = 0;
+/** How far he is into kneeling to pray, 0 to 1 (the story asks for it: g.player.kneel). */
+let kneelK = 0;
+/** What the story has asked to be done every frame (g.each): the lions of the den, say. */
+const eachFrame = new Set();
 /** The treasury's door: where it is, and the collider that shuts it. */
 let treasuryDoor = null;
 let guidance = null;
@@ -513,6 +518,16 @@ function updateWanderer(dt) {
     inp.move = { x: 0, y: 0 };
     inp.jump = false;
   } else if (director?.auto) steer(inp, dt);
+  // One who kneels does not walk; he can still look round, and act (E), which a card's stillness would not let him.
+  const kneeling = director ? (g.player.kneel ?? 0) : 0;
+  kneelK += (kneeling - kneelK) * Math.min(1, dt * 2.6);
+  if (kneeling > 0 || kneelK > 0.02) {
+    inp.move = { x: 0, y: 0 };
+    inp.jump = false;
+    inp.sprint = false;
+    // (nor does he look about him as one who stands idle does)
+    walker.idleTime = 0;
+  }
   held.copy(walker.feet);
   const bodyWas = walker.body.translation();
   walker.update(dt, inp, follow.yaw);
@@ -535,8 +550,12 @@ function updateWanderer(dt) {
   animator.relaxHands(walker.speed);
   animator.uprightTrunk(dt, walker.speed, onGround ? 1 : 0.3);
   const looking = walker.mode === 'move' || walker.mode === 'idleExtra' ? Math.min(1, Math.max(0, 1 - (walker.speed - 1.5) / 2)) : 0;
-  animator.lookToward(dt, camera.getWorldDirection(gaze), looking);
+  animator.lookToward(dt, camera.getWorldDirection(gaze), looking * (1 - kneelK));
   animator.armClearance(dt);
+  if (kneelK > 0.01) {
+    poseAcross(animator.bones, man, walker.yaw, PRAY, PRAY_SINK, kneelK);
+    man.updateMatrixWorld(true);
+  }
   // what Nephi carries, he carries in both hands (g.player.holds, set by props.carry)
   {
     const holds = director ? g.player.holds : null;
@@ -549,7 +568,8 @@ function updateWanderer(dt) {
   }
   if (walker.mode === 'move' && !walker.strafe) animator.leanInto(dt, walker.turnRate, walker.speed, walker.accelF);
   else animator.leanInto(dt, 0, 0, 0);
-  animator.placeFeet(dt, (x, z, from) => walker.ground(x, z, from, 1.4), at.y, onGround ? 1 : 0);
+  // (the feet of one who kneels are not put to the ground: his knees are)
+  if (kneelK <= 0.01) animator.placeFeet(dt, (x, z, from) => walker.ground(x, z, from, 1.4), at.y, onGround ? 1 : 0);
   man.updateMatrixWorld(true);
   // a step is heard when a foot of his comes down, and at no other time: louder the faster he goes
   // (a foot has landed when its ankle, having swung clear of the ground, is back down by it)
@@ -668,10 +688,17 @@ function placeCamera() {
 // ---- the page ------------------------------------------------------------------------------------------------
 const wind = { angle: Math.atan2(HERO[1], HERO[0]) + 0.9, speed: 4.5 };
 
-function setHour(hour) {
-  sky.setHour(Math.max(12, hour));
-  trees.cast(sky.sunDir);
-  castAt = sky.hour;
+/**
+ * The hour of the day: 12 to sunset, 21 on for night, and before 12 for a morning (sky.js: the evening turned
+ * about; no earlier than 6). `soft` for a small step of a sun that is seen to move: the clouds then take the new
+ * light as they billow, and the trees' shade is cast again only when it has moved a little.
+ */
+function setHour(hour, soft = false) {
+  sky.setHour(Math.max(6, hour), soft);
+  if (!soft || Math.abs(sky.hour - castAt) > 0.1) {
+    trees.cast(sky.sunDir);
+    castAt = sky.hour;
+  }
   city.uniforms.uNight.value = sky.night;
 }
 let noteTimer = 0;
@@ -746,6 +773,7 @@ function tick(dt) {
   }
   cast.track(player.x, player.z);
   cast.update(dt);
+  for (const fn of eachFrame) fn(dt);
   props.update();
   placeCamera();
   field.update(dt, camera);
@@ -836,6 +864,8 @@ if (touch) createTouch({ canvas, input, ui, press: () => director?.press(), tap:
 const g = {
   canvas,
   scene,
+  /** The camera (read only: where it is, so a thing that moves can keep out from between it and the walker). */
+  camera,
   ui,
   cast,
   props,
@@ -870,6 +900,12 @@ const g = {
     },
     // (he can carry things as the others do: props.carry)
     visible: true,
+    /** 1 while he kneels to pray, upright on his knees (he does not walk then, but can still act); else 0. */
+    kneel: 0,
+  },
+  /** Asks for `fn(dt)` to be called every frame from now on, on the game's own clock (which a test steps). */
+  each(fn) {
+    eachFrame.add(fn);
   },
   log: (message) => console.log(`[game] ${message}`),
   /** The scripture read aloud, where there are recordings of it (narration.js). */
@@ -896,9 +932,12 @@ const g = {
     if (open) props.hide('door');
     else props.show('door', treasuryDoor.at);
   },
-  /** Lights the room the story is at: 'treasury' or 'lehi' (city.js). */
-  room(name) {
-    city.light(name);
+  /**
+   * Lights the room the story is at: 'treasury' or 'lehi' (city.js), or one of another city's. `over` may give
+   * its lamp another `reach`, or its roof another `shade`, than it was made with.
+   */
+  room(name, over) {
+    city.light(name, over);
   },
   /** His own clothes, or another's of the story by name (Laban's, 4:19). */
   dress(who) {

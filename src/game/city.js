@@ -80,6 +80,7 @@ uniform float uNight;     // 0 by day, 1 at night: lamps in the windows
 uniform vec4 uRoomLamp;   // a lamp burning in a room (the treasury): where it is, and how far its light reaches
 uniform vec4 uRoom;       // that room: the valley's line (x, z) and the room's half-sizes along and across it
 uniform float uRoomShade; // how much of the day's light the room's roof keeps off what is in it (0: none)
+uniform vec3 uRoomTint;   // the colour of that lamp's light: a flame's, unless the story says otherwise
 uniform sampler2D tGlaze; // the figures on glazed brick (glaze.js): five across
 layout(location = 0) out vec4 outC;
 in vec3 vWorld;
@@ -231,7 +232,7 @@ void main() {
   // (under a roof by day it is dimmer than out of doors)
   col *= 1.0 - uRoomShade * within * step(vWorld.y, uRoomLamp.y + 2.45);
   col += glow;
-  col += paint * vec3(1.15, 0.66, 0.3) * reach * within * smoothstep(0.0, 0.35, dot(N, normalize(toLamp)));
+  col += paint * uRoomTint * reach * within * smoothstep(0.0, 0.35, dot(N, normalize(toLamp)));
   outC = vec4(applyFog(col, vWorld), alpha);
 }
 `;
@@ -728,7 +729,7 @@ export function createCity(field, look = JERUSALEM) {
   const b = builder();
   buildCity(b, random, look);
   look.outside(b, random);
-  const uniforms = { ...field.uniforms, uNight: { value: 0 }, uRoomLamp: { value: new THREE.Vector4(0, 0, 0, 0) }, uRoom: { value: new THREE.Vector4(1, 0, 0, 0) }, uRoomShade: { value: 0 }, tGlaze: { value: look.glaze ? glazeTexture() : NO_GLAZE } };
+  const uniforms = { ...field.uniforms, uNight: { value: 0 }, uRoomLamp: { value: new THREE.Vector4(0, 0, 0, 0) }, uRoom: { value: new THREE.Vector4(1, 0, 0, 0) }, uRoomShade: { value: 0 }, uRoomTint: { value: new THREE.Vector3(1.15, 0.66, 0.3) }, tGlaze: { value: look.glaze ? glazeTexture() : NO_GLAZE } };
   const material = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: vertex, fragmentShader: fragment, uniforms, side: THREE.DoubleSide });
   const mesh = new THREE.Mesh(b.build(), material);
   mesh.frustumCulled = false;
@@ -738,14 +739,19 @@ export function createCity(field, look = JERUSALEM) {
   });
   // The rooms that can be walked into, each with its lamp. One is lit at a time: the one the story is at.
   const rooms = look.rooms;
-  /** Lights one of the rooms. */
-  const light = (name) => {
+  /**
+   * Lights one of the rooms. `over` may give another `reach` for its lamp or another `shade` under its roof than
+   * the room was made with (a den as its mouth is shut, a chamber as the day goes on), or another colour for its
+   * light (`tint`: a flame's, unless given); where the lamp is stays.
+   */
+  const light = (name, over = {}) => {
     const r = rooms[name];
     const [x, z] = fromValley(r.u, r.v);
-    uniforms.uRoomLamp.value.set(x, heightAt(x, z) + r.up, z, r.reach);
+    uniforms.uRoomLamp.value.set(x, heightAt(x, z) + r.up, z, over.reach ?? r.reach);
     // (the room itself, within its walls)
     uniforms.uRoom.value.set(DX, DZ, r.half[0], r.half[1]);
-    uniforms.uRoomShade.value = r.shade;
+    uniforms.uRoomShade.value = over.shade ?? r.shade;
+    uniforms.uRoomTint.value.set(...(over.tint ?? r.tint ?? [1.15, 0.66, 0.3]));
   };
   light(look.room);
   return { mesh, uniforms, solids, light, look };
@@ -828,6 +834,14 @@ export function createProps(city, heightAt) {
     plates: make((b) => {
       b.box(-0.17, 0.17, -0.12, 0.12, 0, 0.12, { part: PART.GOLD, colour: BRASS, seed: 0.6, solid: false, roofPart: PART.GOLD, roofColour: BRASS });
       for (const u of [-0.1, 0.1]) b.box(u - 0.015, u + 0.015, -0.125, 0.125, -0.005, 0.125, { part: PART.WOOD, colour: [0.3, 0.2, 0.12], seed: 0.61, solid: false });
+    }),
+    // the stone laid upon the mouth of the den (Daniel 6:17): a slab of rough stone, seen from above and, by one
+    // in the den, from beneath; on it, where it meets the rim, the clay that takes the seals
+    stone: make((b) => {
+      const ROCK = [0.6, 0.56, 0.5];
+      b.box(-2.1, 2.1, -2.1, 2.1, 0, 0.55, { part: PART.STONE, colour: ROCK, seed: 0.66, solid: false, roofPart: PART.STONE, roofColour: ROCK });
+      b.quad([[-2.1, 0, -2.1], [2.1, 0, -2.1], [2.1, 0, 2.1], [-2.1, 0, 2.1]], [0, -1, 0], PART.STONE, [0.34, 0.32, 0.3], [[-2.1, 0], [2.1, 0], [2.1, 4.2], [-2.1, 4.2]], 0.67);
+      for (const u of [-0.9, 0.9]) b.box(u - 0.16, u + 0.16, 1.94, 2.26, 0.5, 0.6, { colour: [0.62, 0.36, 0.26], seed: 0.68, solid: false, roofPart: PART.PLASTER, roofColour: [0.66, 0.38, 0.27] });
     }),
   };
   const group = new THREE.Group();

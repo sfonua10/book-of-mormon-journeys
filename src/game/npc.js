@@ -53,18 +53,33 @@ const BOW = [
 ];
 /** How far the body sinks (metres) when it is on its knees. */
 const KNEEL = 0.8;
-function bowDown(npc, k) {
-  const b = npc.man.bones;
-  across.set(Math.cos(npc.yaw), 0, -Math.sin(npc.yaw));
-  npc.man.object.position.y -= KNEEL * k;
-  for (const [name, degrees] of BOW) {
-    const bone = b[name];
+// Kneeling to pray (Daniel 6:10: "he kneeled upon his knees"): upright on both knees, the shins laid back along the
+// ground, the back a little bent and the head bowed. The hands are put together before him by whoever asks for it
+// (`holds`, hold.js).
+export const PRAY = [
+  ['calf_l', 96], ['calf_r', 96],
+  ['spine_01', 5], ['spine_02', 5], ['spine_03', 4],
+  ['neck_01', 12], ['Head', 14],
+];
+/** How far the body sinks when it kneels so. */
+export const PRAY_SINK = 0.46;
+/**
+ * Turns bones about the line across a figure (`table`: [bone, degrees], as BOW), `k` of the way (0 to 1), and
+ * sinks the whole of him `sink` metres times k. `object` is the figure, standing at `yaw`; his bones are as his
+ * clips have left them this frame.
+ */
+export function poseAcross(bones, object, yaw, table, sink, k) {
+  across.set(Math.cos(yaw), 0, -Math.sin(yaw));
+  object.position.y -= sink * k;
+  for (const [name, degrees] of table) {
+    const bone = bones[name];
     if (!bone?.parent) continue;
     bone.parent.getWorldQuaternion(parentTurn);
     local.copy(across).applyQuaternion(parentTurn.invert());
     bone.quaternion.premultiply(turn.setFromAxisAngle(local, (degrees * Math.PI * k) / 180));
   }
 }
+const bowDown = (npc, k) => poseAcross(npc.man.bones, npc.man.object, npc.yaw, BOW, KNEEL, k);
 
 /**
  * @param field the meadow (its uniforms light them)
@@ -329,6 +344,9 @@ export function createCast(field, base, world) {
     // one who has fallen down to worship (`bow`, 0 to 1): on his knees, bent to the ground, his hands before him
     npc.bowK = (npc.bowK ?? 0) + ((npc.bow ?? 0) - (npc.bowK ?? 0)) * (snap ? 1 : Math.min(1, dt * 2.6));
     if (npc.bowK > 0.01) bowDown(npc, npc.bowK);
+    // one who kneels to pray (`kneel`, 0 to 1): upright on his knees
+    npc.kneelK = (npc.kneelK ?? 0) + ((npc.kneel ?? 0) - (npc.kneelK ?? 0)) * (snap ? 1 : Math.min(1, dt * 2.6));
+    if (npc.kneelK > 0.01) poseAcross(npc.man.bones, o, npc.yaw, PRAY, PRAY_SINK, npc.kneelK);
     o.updateMatrixWorld(true);
     // one who carries something has both hands to it
     npc.held = npc.holds ?? npc.held;
